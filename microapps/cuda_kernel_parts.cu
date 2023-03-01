@@ -58,7 +58,6 @@ void throw_on_cuda_error( cudaError_t code, const char *file, int line)
   }
 }
 
-}
 
 class KernelFn
 {
@@ -127,7 +126,9 @@ private:
 	name_to_GPU_kernel_map_t _kernel_map;
 };
 
-KernelStore _global_kernel_store;
+KernelStore _kernel_store;
+} // unnamed namespace
+
 
 extern "C"  {
 
@@ -135,7 +136,7 @@ const KernelFn *
 get_kernel_by_name(const char* kernel_name) noexcept
 {
 
-	return _global_kernel_store.get(kernel_name);
+	return _kernel_store.get(kernel_name);
 }
 
 
