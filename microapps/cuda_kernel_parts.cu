@@ -6,6 +6,10 @@
  *    cudaErrorSymbolNotFound = 500
  *    This indicates that a named symbol was not found. Examples of symbols are global/constant variable names,
  *    driver function names, texture names, and surface names.
+ * The CUDA runtime implementations utilizes kernel function pointers as a more advanced key into a structure of
+ * properties for the kernel.  For this to work, it seems kernel launch needs to see the kernel definition.
+ * There is likely a way to separate the to using the lower-level cu* device library.  At this time, I don't see
+ * any reason to explore that approach.
  */
  
 /*
