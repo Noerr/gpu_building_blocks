@@ -1,4 +1,4 @@
-# gpu_building_blocks
+# GPU Building Blocks - key techonolgy tests and demonstration
 Prototypes and Functionality tests for GPU &amp; MPI programming models relevant to plasma modeling code
 
 
