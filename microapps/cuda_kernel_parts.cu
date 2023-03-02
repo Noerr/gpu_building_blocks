@@ -46,18 +46,6 @@ void copy_element_kernel(LO lid, const double *e_src, double *e_dst)
       e_dst[i] = e_src[i] + 1000;
 }
 
-namespace {
-
-void throw_on_cuda_error( cudaError_t code, const char *file, int line)
-{
-  if(code != cudaSuccess)
-  {
-    std::stringstream ss;
-    ss << "CUDA Runtime Error " << code << " at " << file << "(" << line << ")";
-    throw std::runtime_error(ss.str());
-  }
-}
-
 
 class KernelFn
 {
@@ -74,6 +62,20 @@ private:
 	const void * _mbr_generic_ptr;
 	
 };
+
+
+namespace {
+
+void throw_on_cuda_error( cudaError_t code, const char *file, int line)
+{
+  if(code != cudaSuccess)
+  {
+    std::stringstream ss;
+    ss << "CUDA Runtime Error " << code << " at " << file << "(" << line << ")";
+    throw std::runtime_error(ss.str());
+  }
+}
+
 
 
 template <typename CUDA_fn_type>
