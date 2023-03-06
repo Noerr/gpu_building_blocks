@@ -17,6 +17,7 @@
 #define KERNELS_MODULE_RUNTIME_H
 
 class KernelFn;
+class DeviceStream;
 
 
 /**
@@ -33,9 +34,9 @@ extern "C"  {
 
 	/**
 	 * Issues a new work segment with one-dimensional specification to the device and queue.
-	 * TODO: size_t sharedMem = 0, cudaStream_t stream = 0
+	 * TODO: size_t sharedMem = 0
 	 */
-	void enqueueKernelWork_1D( const KernelFn *, int numBlocks, int blockSize, void** args) noexcept;
+	void enqueueKernelWork_1D( DeviceStream * pStream, const KernelFn *, int numBlocks, int blockSize, void** args) noexcept;
 
 }
 

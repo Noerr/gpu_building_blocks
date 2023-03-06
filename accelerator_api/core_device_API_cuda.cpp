@@ -5,6 +5,7 @@
  */
 
 #include "compute_device_core_API.h"
+#include "stream_implementation_cuda.h"
 #include <cuda_runtime.h>
 
 #include <sstream>
@@ -27,10 +28,25 @@ namespace {
 	
 }
 
+
+
 ComputeDevice & getComputeDevice()
 {
 	return _one_and_only_CUDA_device;
 
+}
+
+DeviceStream *
+ComputeDevice::createStream()
+{
+	DeviceStream * p_newstream = new DeviceStream(*this);
+	return p_newstream;
+}
+	
+void
+ComputeDevice::freeStream(DeviceStream * p_stream)
+{
+	delete p_stream;
 }
 
 void * 
@@ -39,6 +55,7 @@ ComputeDevice::malloc( std::size_t numBytes )
 	void * allocation;
 	throw_on_cuda_error( cudaMalloc ( &allocation, numBytes ), __FILE__, __LINE__);
 	//TODO: why does this not specify a cuda device?  Consider adding cudaMemAdvise call for case of multi-GPU systems.++++
+	//TODO: ??? cudaMemAttachGlobal );
 	return allocation;
 }
 
@@ -50,8 +67,25 @@ ComputeDevice::free( void * allocation_pointer )
 }
 
 
+DeviceStream::DeviceStream(ComputeDevice& parentDevice)
+{
+	cudaStream_t newStream;
+	unsigned int stream_flags = cudaStreamNonBlocking;
+	cudaError_t ret =
+	cudaStreamCreateWithFlags (&newStream, stream_flags); throw_on_cuda_error(ret, __FILE__, __LINE__);
+	_pimpl = new Strm_Impl(newStream);
+}
+
+DeviceStream::~DeviceStream()
+{
+	cudaError_t ret =
+	cudaStreamDestroy (_pimpl->get_cudaStream()); throw_on_cuda_error(ret, __FILE__, __LINE__);
+	delete _pimpl;
+}
+
+
 void * 
-ComputeDevice::DeviceStream::memcpy(void *restrict dst, const void *restrict src, std::size_t numBytes)
+DeviceStream::memcpy(void *__restrict__ dst, const void *__restrict__ src, std::size_t numBytes)
 {
 
 	cudaMemcpyKind kind = cudaMemcpyDefault;  //TODO:  more direction consideration. (look at HIP and SYCL)
@@ -59,17 +93,15 @@ ComputeDevice::DeviceStream::memcpy(void *restrict dst, const void *restrict src
 	//TODO:  likely change to cudaMemcpyAsync which takes a stream * argument.	
 	
 	cudaError_t ret1 =
-	cudaMemcpy( dst, src, numBytes, kind);  throw_on_cuda_error(ret1, __FILE__, __LINE__);
+	cudaMemcpyAsync( dst, src, numBytes, kind, _pimpl->get_cudaStream());  throw_on_cuda_error(ret1, __FILE__, __LINE__);
 	return dst;
 }
 
 
 void
-ComputeDevice::DeviceStream::sync()
+DeviceStream::sync()
 {
 	cudaError_t ret1 =
-	cudaDeviceSynchronize();  throw_on_cuda_error( ret1 , __FILE__, __LINE__);
-	// TODO: replace cudaStreamSynchronize ( cudaStream_t stream )
-	
+	cudaStreamSynchronize(_pimpl->get_cudaStream());  throw_on_cuda_error( ret1 , __FILE__, __LINE__);	
 }
 

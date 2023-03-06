@@ -24,6 +24,7 @@ nvcc --shared -o lib_kernel_parts.so cuda_kernel_parts.cu --compiler-options '-f
 #include <stdio.h> //debugging
 
 #include "kernels_module_interface.h"
+#include "stream_implementation_cuda.h"
 
 
 typedef size_t GO;  typedef short LO;
@@ -137,23 +138,23 @@ extern "C"  {
 const KernelFn *
 get_kernel_by_name(const char* kernel_name) noexcept
 {
-
 	return _kernel_store.get(kernel_name);
 }
 
 
 void
-enqueueKernelWork_1D( const KernelFn * fn, int numBlocks, int blockSize, void** args) noexcept
+enqueueKernelWork_1D( DeviceStream* pStream, const KernelFn * fn, int numBlocks, int blockSize, void** args) noexcept
 {
 	const void * cuda_kernel_fn = fn->toCUDA_kernel_fn(); 
 	
 	dim3 gridDim3(numBlocks);
     dim3 blockSize3(blockSize);
-	
+
+	cudaStream_t cudaStream = to_impl_type<cudaStream_t>( pStream );
+
 	printf("launching fn by ptr %p\n", cuda_kernel_fn);  fflush(stdout);
 	cudaError_t ret1 = 
-    cudaLaunchKernel( cuda_kernel_fn, gridDim3, blockSize3, args, 0 /*shared*/, 0 /*stream*/ );
-    throw_on_cuda_error( ret1 , __FILE__, __LINE__);
+    cudaLaunchKernel( cuda_kernel_fn, gridDim3, blockSize3, args, 0 /*shared*/, cudaStream ); throw_on_cuda_error( ret1 , __FILE__, __LINE__);
 
 }
 

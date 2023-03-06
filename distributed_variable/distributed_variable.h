@@ -7,8 +7,12 @@
  *
  */
  
-#include <vector>
+#ifndef DISTRIBUTED_VARIABLE_H
+#define DISTRIBUTED_VARIABLE_H
 
+
+#include <vector>
+#include "compute_device_core_API.h"
 
 template <typename E, typename LocalIndex, typename GlobalOrdinal_t>
 class DistributedVariable
@@ -19,13 +23,13 @@ public:
     : _my_globalOrdinals(globalOrdinals), _device_storage(nullptr)
     {
         if (numLocalElements()>0)
-        	_device_storage = static_cast<E*>(device_malloc(numLocalElements()*sizeof(E))); //TODO:, cudaMemAttachGlobal );
+        	_device_storage = static_cast<E*>(getComputeDevice().malloc(numLocalElements()*sizeof(E)));
     }
     
     ~DistributedVariable()
     {
         if (numLocalElements()>0)
-        	device_free( _device_storage );
+        	getComputeDevice().free( _device_storage );
     }
     
     /*  these are not simple for host access unless I establish unified address space
@@ -47,3 +51,4 @@ private:
     
 };
 
+#endif //DISTRIBUTED_VARIABLE_H

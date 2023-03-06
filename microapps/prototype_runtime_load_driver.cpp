@@ -102,21 +102,26 @@ int main(int argc, char *argv[]) {
     void * my_faces_dev_ptr = myFaces.device_ptr();
 	void * your_faces_dev_ptr = yourFaces.device_ptr();
 
+    // Compute Device and stream(s)
+    DeviceStream * pStream1 = getComputeDevice().createStream();
+
     // kernel run #1 : initialize elements based on runtime argument
     void * args1[] = {&numElemPerProcess, &my_faces_dev_ptr, &myrank};
     const KernelFn * user_choice_kernel = get_kernel_by_name_module1( kernel_name.c_str() );
-    enqueueKernelWork_module1( user_choice_kernel, numBlocks, blockSize, args1);
+    enqueueKernelWork_module1( pStream1, user_choice_kernel, numBlocks, blockSize, args1);
     
 	// kernel run #2 : copy elements
     void * args2[] = {&numElemPerProcess, &my_faces_dev_ptr, &your_faces_dev_ptr};
     const KernelFn * copy_element_kernel = get_kernel_by_name_module1( "copy_element_kernel" );
-    enqueueKernelWork_module1( copy_element_kernel, numBlocks, blockSize, args2);
+    enqueueKernelWork_module1( pStream1, copy_element_kernel, numBlocks, blockSize, args2);
 
     std::vector<double> host_result(numElemPerProcess);
     
-    device_memcpy( &host_result[0], yourFaces.device_ptr(), numElemPerProcess*sizeof(double));
+    pStream1->memcpy( &host_result[0], yourFaces.device_ptr(), numElemPerProcess*sizeof(double));
     
-    device_sync();
+    pStream1->sync();
+
+    getComputeDevice().freeStream(pStream1);
     
     const char* sep = "";
     for (int p = 0; p < numranks; p++)
