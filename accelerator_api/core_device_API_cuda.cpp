@@ -22,7 +22,19 @@ void throw_on_cuda_error( cudaError_t code, const char *file, int line)
   }
 }
 
-void * device_malloc( std::size_t numBytes )
+namespace {
+	ComputeDevice _one_and_only_CUDA_device;
+	
+}
+
+ComputeDevice & getComputeDevice()
+{
+	return _one_and_only_CUDA_device;
+
+}
+
+void * 
+ComputeDevice::malloc( std::size_t numBytes )
 {
 	void * allocation;
 	throw_on_cuda_error( cudaMalloc ( &allocation, numBytes ), __FILE__, __LINE__);
@@ -31,13 +43,15 @@ void * device_malloc( std::size_t numBytes )
 }
 
 
-void device_free( void * allocation_pointer )
+void
+ComputeDevice::free( void * allocation_pointer )
 {
 	throw_on_cuda_error( cudaFree ( allocation_pointer ), __FILE__, __LINE__);
 }
 
 
-void * device_memcpy(void *restrict dst, const void *restrict src, std::size_t numBytes)
+void * 
+ComputeDevice::DeviceStream::memcpy(void *restrict dst, const void *restrict src, std::size_t numBytes)
 {
 
 	cudaMemcpyKind kind = cudaMemcpyDefault;  //TODO:  more direction consideration. (look at HIP and SYCL)
@@ -50,7 +64,8 @@ void * device_memcpy(void *restrict dst, const void *restrict src, std::size_t n
 }
 
 
-void device_sync()
+void
+ComputeDevice::DeviceStream::sync()
 {
 	cudaError_t ret1 =
 	cudaDeviceSynchronize();  throw_on_cuda_error( ret1 , __FILE__, __LINE__);

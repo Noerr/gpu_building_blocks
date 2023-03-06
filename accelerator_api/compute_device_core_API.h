@@ -16,29 +16,60 @@
 #define COMPUTE_DEVICE_CORE_API_H
 
 
-/**
- * Access device kernel function point by character string name.
- */
-void * device_malloc( std::size_t numBytes );
+
 
 /**
  * Access device kernel function point by character string name.
  */
-void device_free( void * allocation_pointer );
+class ComputeDevice
+{
+	public:
+	
+	/**
+	 * Allocate numBytes memory on the device.
+	 */
+	void * malloc( std::size_t numBytes );
 
-/**
- * Synchronize (block) on the specified queue
- */
-void device_sync();
+	/**
+	 * Free previous allocation by malloc member function.
+	 */
+	void free( void * allocation_pointer );
+	
+		
 
-/**
- * Copy memory to/from device.  Copies numBytes from memory area src to memory area dst.
- * If dst and src overlap, behavior is undefined.
- * 
- * RETURN VALUES
- *   The device_memcpy() function returns the original value of dst.
- */
-void * device_memcpy(void *restrict dst, const void *restrict src, std::size_t numBytes);
+	class DeviceStream
+	{
+		DeviceStream();
+		~DeviceStream();
+		
+		public:
+			/**
+			 * Synchronize (block) on the specified queue
+			 */
+			sync();
+			
+			/**
+			 * Copy memory to/from device.  Copies numBytes from memory area src to memory area dst.
+			 * If dst and src overlap, behavior is undefined.
+			 * 
+			 * RETURN VALUES
+			 *   The memcpy() function returns the original value of dst.
+			 */
+			void * memcpy(void *restrict dst, const void *restrict src, std::size_t numBytes);
+
+	
+	
+	};
+	
+	DeviceStream * createStream();
+	
+	void freeStream(DeviceStream * p_stream);
+	
+	
+};
+
+
+ComputeDevice & getComputeDevice();
 
 
 #endif //COMPUTE_DEVICE_CORE_API_H
