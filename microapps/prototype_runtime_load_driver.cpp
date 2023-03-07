@@ -10,7 +10,6 @@
 
 #include "compute_device_core_API.h"
 #include "kernels_module_interface.h"
-#include "distributed_variable.h"
 
 
 #include <dlfcn.h> //for the runtime dlopen and related functionality
@@ -24,6 +23,38 @@
 typedef size_t GO;  typedef short LO;
 
 
+template <typename E>
+class SimpleDeviceVector
+{
+public:
+    
+    SimpleDeviceVector(size_t numElements )
+    : _numElements(numElements), _device_storage(nullptr)
+    {
+        if (size()>0)
+        	_device_storage = static_cast<E*>(getComputeDevice().malloc(size()*sizeof(E)));
+    }
+    
+    ~SimpleDeviceVector()
+    {
+        if (size()>0)
+        	getComputeDevice().free( _device_storage );
+    }
+    
+
+    size_t size() const
+    { return _numElements; }
+    
+    E* device_ptr()
+    { return _device_storage;}
+	
+private:
+    SimpleDeviceVector() = delete; // not needed since I provide non-default constructor
+    
+    size_t _numElements; // todo change to a unique id set
+    E* _device_storage;
+    
+};
 
 
 /*
@@ -86,14 +117,10 @@ int main(int argc, char *argv[]) {
     int numranks=1; int myrank=0;
     
     
-    std::vector<GO> myGlobalOrdinals(numElemPerProcess);
-    for ( int i=0; i< myGlobalOrdinals.size(); i++ )
-        myGlobalOrdinals[i] = myrank*numElemPerProcess*10 + i + 42; // just some funny numbering to reinforce no need that all GO's be sequential.
+
     
-    
-    
-    DistributedVariable<double, LO, GO> myFaces( myGlobalOrdinals );
-    DistributedVariable<double, LO, GO> yourFaces( myGlobalOrdinals );
+    SimpleDeviceVector<double> myFaces( numElemPerProcess );
+    SimpleDeviceVector<double> yourFaces( numElemPerProcess );
     
     // Initialize the variable elements by GPU kernel
     int blockSize = 256;
