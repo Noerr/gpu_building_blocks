@@ -1,6 +1,6 @@
 /**
- * Prototype separated GPU kernels and the main driver program.
- * Ultimate goal is to run-time link GPU kernels from a shared library.
+ * Prototype separated GPU kernels and the main driver program
+ * combined with MPI use of GPU device pointers.
  *
  */
 
@@ -10,18 +10,25 @@
 
 #include "compute_device_core_API.h"
 #include "kernels_module_interface.h"
-#include "simple_device_vector.h"
+#include "distributed_variable.h"
 
 #include <dlfcn.h> //for the runtime dlopen and related functionality
 //#include <stdio.h>
 #include <vector>
 #include <sstream>
 #include <iostream>
+#include <cstdlib>
 
+#include <mpi.h>
 
 
 typedef size_t GO;  typedef short LO;
 
+
+/**
+ * pause if DEBUG_PAUSE_FOR_MPI_ID is set
+ */
+void debugger_attach_opportunity();
 
 
 /**
@@ -83,9 +90,13 @@ int main(int argc, char *argv[]) {
     }
 
 
-    int numranks=1; int myrank=0;
+    int numranks, myrank;
     
+    MPI_Init(&argc, &argv);
+    MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
+    MPI_Comm_size(MPI_COMM_WORLD, &numranks);
     
+    debugger_attach_opportunity();
 
     
     SimpleDeviceVector<double> myFaces( numElemPerProcess );
@@ -140,3 +151,20 @@ int main(int argc, char *argv[]) {
 }
 
 
+void debugger_attach_opportunity()
+{
+    // usefull pause when debugging MPI runs based on environment variable
+    int pauseID, myID;
+    MPI_Comm_rank( /*(ompi_communicator_t*)*/ MPI_COMM_WORLD, &myID);
+    volatile int holder = 0;
+    if (const char* pPauseEnv = std::getenv("DEBUG_PAUSE_FOR_MPI_ID"))
+    {
+        std::stringstream ss( pPauseEnv );
+        ss >> pauseID;
+        if (pauseID == myID) {
+            std::cout << "Pausing to allow for debugger to attach to rank " << pauseID << " process id " << getpid() << "..." << std::endl;
+            while ( holder==0)
+                sleep(1);
+        }
+    }
+}
