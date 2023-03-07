@@ -12,6 +12,9 @@
 
 
 #include <vector>
+
+#include <mpi.h>
+
 //#include "compute_device_core_API.h"
 #include "simple_device_vector.h"
 
