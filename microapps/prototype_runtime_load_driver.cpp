@@ -10,7 +10,7 @@
 
 #include "compute_device_core_API.h"
 #include "kernels_module_interface.h"
-
+#include "simple_device_vector.h"
 
 #include <dlfcn.h> //for the runtime dlopen and related functionality
 //#include <stdio.h>
@@ -22,39 +22,6 @@
 
 typedef size_t GO;  typedef short LO;
 
-
-template <typename E>
-class SimpleDeviceVector
-{
-public:
-    
-    SimpleDeviceVector(size_t numElements )
-    : _numElements(numElements), _device_storage(nullptr)
-    {
-        if (size()>0)
-        	_device_storage = static_cast<E*>(getComputeDevice().malloc(size()*sizeof(E)));
-    }
-    
-    ~SimpleDeviceVector()
-    {
-        if (size()>0)
-        	getComputeDevice().free( _device_storage );
-    }
-    
-
-    size_t size() const
-    { return _numElements; }
-    
-    E* device_ptr()
-    { return _device_storage;}
-	
-private:
-    SimpleDeviceVector() = delete; // not needed since I provide non-default constructor
-    
-    size_t _numElements; // todo change to a unique id set
-    E* _device_storage;
-    
-};
 
 
 /*
