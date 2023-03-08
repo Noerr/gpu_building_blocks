@@ -10,6 +10,8 @@
 #ifndef SIMPLE_DEVICE_VECTOR_H
 #define SIMPLE_DEVICE_VECTOR_H
 
+#include "compute_device_core_API.h"
+
 template <typename E>
 class SimpleDeviceVector
 {

@@ -88,4 +88,9 @@ class DeviceStream
 ComputeDevice & getComputeDevice();
 
 
+namespace Tracing {
+	void traceRangePush(const char * traceRegionLabel);
+	void traceRangePop();
+}
+
 #endif //COMPUTE_DEVICE_CORE_API_H

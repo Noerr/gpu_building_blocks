@@ -7,6 +7,7 @@
 #include "compute_device_core_API.h"
 #include "stream_implementation_cuda.h"
 #include <cuda_runtime.h>
+#include <nvToolsExtCuda.h> //for the nvtx profiler annotations api.
 
 #include <sstream>
 #include <stdexcept>
@@ -105,3 +106,16 @@ DeviceStream::sync()
 	cudaStreamSynchronize(_pimpl->get_cudaStream());  throw_on_cuda_error( ret1 , __FILE__, __LINE__);	
 }
 
+
+namespace Tracing {
+	void traceRangePush(const char * traceRegionLabel)
+	{
+		nvtxRangePush(traceRegionLabel);
+	}
+
+	void traceRangePop()
+	{
+		nvtxRangePop();
+	}
+	
+}

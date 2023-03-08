@@ -18,6 +18,7 @@
 #include <sstream>
 #include <iostream>
 #include <cstdlib>
+#include <unistd.h> //for sleep() and getpid()
 
 #include <mpi.h>
 
