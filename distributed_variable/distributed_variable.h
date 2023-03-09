@@ -12,16 +12,34 @@
 
 
 #include <vector>
-
+#include <map>
 #include <mpi.h>
 
 //#include "compute_device_core_API.h"
 #include "simple_device_vector.h"
 
+
+
+template <typename D>
+struct MPI_Datatypes {
+	static MPI_Datatype mpi_type();
+};
+
+template<> MPI_Datatype MPI_Datatypes<short>::mpi_type() { return MPI_SHORT;}
+template<> MPI_Datatype MPI_Datatypes<int>::mpi_type() { return MPI_INT;}
+template<> MPI_Datatype MPI_Datatypes<unsigned int>::mpi_type() { return MPI_UNSIGNED;}
+template<> MPI_Datatype MPI_Datatypes<double>::mpi_type() { return MPI_DOUBLE;}
+template<> MPI_Datatype MPI_Datatypes<float>::mpi_type() { return MPI_FLOAT;}
+
+
+
+
 template <typename E, typename LocalIndex, typename GlobalOrdinal_t>
 class DistributedVariable : public SimpleDeviceVector<E>
 {
 	public:
+
+	typedef E ElementType;
 
 	DistributedVariable(const std::vector<GlobalOrdinal_t> &globalOrdinals )
 	: SimpleDeviceVector<E>( globalOrdinals.size() ), _my_globalOrdinals(globalOrdinals)
@@ -34,18 +52,10 @@ class DistributedVariable : public SimpleDeviceVector<E>
 
 	}
 
-	/**
-	 * Calculate local ordinal for a face normal to facedim.
-	 *  Ordering is all faces normal to dim0, then dim1, then dim2.  C-style row-major ordering in those groups
-	 *  "local" because upper extent faces on the box are not counted
-	 */
-	LocalIndex localFaceOrdinal( int facedim, const std::vector<int> &multiIndex, const std::vector<int> &boxDim );
-
-
 	size_t numLocalElements() const
 	{ return _my_globalOrdinals.size(); }
 
-	static std::vector<GlobalOrdinal_t> createGlobalOrdinalDecomposition_3DstructuredFaces(int numElemPerProcess, int numProcesses, int myrank );
+	
 
 	private:
 	DistributedVariable() = delete; // not needed since I provide non-default constructor
@@ -66,11 +76,18 @@ class DistributedVariable : public SimpleDeviceVector<E>
  *   2. updateTargets()
  *   3. exposureEpochEnd()
  */
-template <typename DV_t, typename OffsetMap_t>
+template <typename DV_t, typename LO>
 class NeighborhoodExchanger
 {
 	public:
 	typedef typename DV_t::ElementType E;
+	struct LocalOffsetAndExtent {
+		LO offset;
+		LO extent;
+	};
+	typedef std::map<int, LocalOffsetAndExtent> OffsetMap_t;
+
+
 	NeighborhoodExchanger( const DV_t& sourceVar, DV_t& targetVar, const OffsetMap_t& src_pe_offset_mapping, const OffsetMap_t& target_pe_offset_mapping );
 
 	~NeighborhoodExchanger();

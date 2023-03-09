@@ -36,6 +36,8 @@ public:
     
     E* device_ptr()
     { return _device_storage;}
+    const E* device_ptr() const
+    { return _device_storage;}
 	
 private:
     SimpleDeviceVector() = delete; // not needed since I provide non-default constructor
