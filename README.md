@@ -9,7 +9,7 @@ Prototypes and Functionality tests for GPU &amp; MPI programming models relevant
 
 ### Executable driver that prototypes runtime loading and selection of GPU kernel to apply
 ```
-gpu_building_blocks/microapps> CC -I../accelerator_api -I../distributed_variable -o cuda_runtime_kernel_link_prototype.exe  ../accelerator_api/core_device_API_cuda.cpp  prototype_runtime_load_driver.cpp
+gpu_building_blocks/microapps> CC -I../accelerator_api -I../distributed_variable -o cuda_runtime_kernel_link_prototype.exe  ../accelerator_api/core_device_API_cuda.cpp  prototype_runtime_load_driver.cpp -ldl
 
 ```
 
