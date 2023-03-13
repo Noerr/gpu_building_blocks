@@ -14,6 +14,7 @@
 #define COMPUTE_DEVICE_CORE_API_H
 
 #include <cstddef>
+#include <string>
 
 class DeviceStream;
 
@@ -39,6 +40,11 @@ class ComputeDevice
 	
 	void freeStream(DeviceStream * p_stream);
 	
+	/**
+	 * @brief Identifying information about the GPU.
+	 * TODO:  static because I have not implemented and do not necessarily want to support multiple GPU per PE.
+	 */
+	static std::string getGPUDeviceInfoString();
 	
 };
 
@@ -84,9 +90,20 @@ class DeviceStream
 
 };
 
-
+/**
+ * @brief Get the current or default Compute Device object
+ * 
+ * @return ComputeDevice& 
+ */
 ComputeDevice & getComputeDevice();
 
+/**
+ * @brief Set the current Compute Device object by rotating device index function
+ * 
+ * The funciton is device_numerator % device_count
+ * @param device_numerator 
+ */
+void setComputeDevice(int device_numerator);
 
 namespace Tracing {
 	void traceRangePush(const char * traceRegionLabel);

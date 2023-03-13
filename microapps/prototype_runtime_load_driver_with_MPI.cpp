@@ -101,8 +101,7 @@ std::vector<int> primeFactors(unsigned int n) {
 		return {1};
 	int test=2;
 	while (n > 1) {
-		if (test>initial_n)
-			throw std::runtime_error("Prime Factorization implemenation FAIL!");
+		assert(test<=initial_n); // ("Prime Factorization implemenation FAIL!");
 		if (n%test==0) {
 			factors.push_back(test);
 			n = n/test;
@@ -288,7 +287,8 @@ createGlobalOrdinalDecomposition_3DstructuredFaces(int numElemPerProcess, int nu
 	}
 	if (localOffset>0) // final end case.
 		neighborRankTo_LOCAL_OffsetAndExtent.insert( { lastNeighbor, { lastOffset, localExtent  } } );
-	std::cout << "P " << myrank << " has " << numNeighborPE << " neighbors." << std::endl;
+	// Decomposition Diagnostics:
+	//std::cout << "P " << myrank << " has " << numNeighborPE << " neighbors." << std::endl;
 	
 	
 	std::map<int, LocalOffsetAndExtent> neighborRankTo_REMOTE_OffsetAndExtent(neighborRankTo_LOCAL_OffsetAndExtent);
@@ -316,15 +316,16 @@ createGlobalOrdinalDecomposition_3DstructuredFaces(int numElemPerProcess, int nu
 	}
 	MPI_Waitall(exchangeCounter, &requests[0], MPI_STATUSES_IGNORE);
 	
-	std::stringstream ss;
-	ss << "PE " << myrank << ": pairs with " << std::endl;
-	for (const auto& i : neighborRankTo_REMOTE_OffsetAndExtent) {
-		int pair_PE = i.first;
-		ss << pair_PE << " (local, remote) Offset: ";
-		ss << "{ " << neighborRankTo_LOCAL_OffsetAndExtent.at(pair_PE).offset <<  ", " << i.second.offset << "}";
-		ss << "Extents: {" << neighborRankTo_LOCAL_OffsetAndExtent.at(pair_PE).extent <<  ", " << i.second.extent << "}"  << std::endl;
-	}
-	std::cout << ss.str();
+	// Decomposition Diagnostics:
+	// std::stringstream ss;
+	// ss << "PE " << myrank << ": pairs with " << std::endl;
+	// for (const auto& i : neighborRankTo_REMOTE_OffsetAndExtent) {
+	// 	int pair_PE = i.first;
+	// 	ss << pair_PE << " (local, remote) Offset: ";
+	// 	ss << "{ " << neighborRankTo_LOCAL_OffsetAndExtent.at(pair_PE).offset <<  ", " << i.second.offset << "}";
+	// 	ss << "Extents: {" << neighborRankTo_LOCAL_OffsetAndExtent.at(pair_PE).extent <<  ", " << i.second.extent << "}"  << std::endl;
+	// }
+	// std::cout << ss.str();
 	
 	std::vector<GlobalOrdinal_t> myGlobalOrdinals;
 	std::vector<int> yourCorrespondingProcess;
@@ -334,14 +335,15 @@ createGlobalOrdinalDecomposition_3DstructuredFaces(int numElemPerProcess, int nu
 		yourCorrespondingProcess.push_back(i.PE);
 	}
 	
-	for (int p = 0; p < numProcesses; p++)
-	{
-		if (p==myrank) {
-			std::cout << "P " << p << " Global Ordinals: " << makeCSLstr(myGlobalOrdinals) << std::endl;
-			std::cout << "P " << p << "	Your Process: " << makeCSLstr(yourCorrespondingProcess) << std::endl;
-			MPI_Barrier(MPI_COMM_WORLD);  // barrier actual *not* sequentially ordering stdout on Perlmutter / Slurm sys
-		}
-	}
+	// Decomposition Diagnostics:
+	// for (int p = 0; p < numProcesses; p++)
+	// {
+	// 	if (p==myrank) {
+	// 		std::cout << "P " << p << " Global Ordinals: " << makeCSLstr(myGlobalOrdinals) << std::endl;
+	// 		std::cout << "P " << p << "	Your Process: " << makeCSLstr(yourCorrespondingProcess) << std::endl;
+	// 		MPI_Barrier(MPI_COMM_WORLD);  // barrier actual *not* sequentially ordering stdout on Perlmutter / Slurm sys
+	// 	}
+	// }
 
 	return std::make_tuple(myGlobalOrdinals, neighborRankTo_LOCAL_OffsetAndExtent, neighborRankTo_LOCAL_OffsetAndExtent);
 }
@@ -376,6 +378,16 @@ int main(int argc, char *argv[]) {
         arg3 >> kernel_name;
     }
 
+    int numranks, myrank;
+    
+    MPI_Init(&argc, &argv);
+    MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
+    MPI_Comm_size(MPI_COMM_WORLD, &numranks);
+    debugger_attach_opportunity();
+
+	setComputeDevice( myrank ); // bug on Perlmutter cray-mpich requires cpu-bind=none.  Then default placement is all ranks on same gpu 0.
+	//std::cout << "PE " << myrank << ": GPU " << ComputeDevice::getGPUDeviceInfoString() << std::endl;
+
     void * libhandle = dlopen(runtime_module_filename.c_str(), RTLD_NOW | RTLD_DEEPBIND ); //longterm preference: RTLD_LAZY);
     if (libhandle == nullptr) {
         std::cerr << "Error with dlopen " << runtime_module_filename.c_str() <<std::endl << dlerror() << std::endl;
@@ -405,20 +417,14 @@ int main(int argc, char *argv[]) {
     }
 
 
-    int numranks, myrank;
-    
-    MPI_Init(&argc, &argv);
-    MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
-    MPI_Comm_size(MPI_COMM_WORLD, &numranks);
-    
-    debugger_attach_opportunity();
+
 
 	typedef DistributedVariable<double, LO, GO> DV_t;
 	typedef NeighborhoodExchanger<DV_t, LO> NeighborhoodExchanger_t;
 	typedef NeighborhoodExchanger_t::LocalOffsetAndExtent LocalOffsetAndExtent;
 
 	typedef  std::map<int, LocalOffsetAndExtent> OffsetMap_t;
-    //std::tuple< std::vector<GO>, OffsetMap_t, OffsetMap_t > std::vector<GO> myGlobalOrdinals =
+    
 	// C++17 structured binding:
     const auto [ myGlobalOrdinals, neighborRankTo_LOCAL_OffsetAndExtent, neighborRankTo_REMOTE_OffsetAndExtent ] =
     createGlobalOrdinalDecomposition_3DstructuredFaces<LO, GO, OffsetMap_t>( numElemPerProcess, numranks, myrank );
@@ -430,8 +436,6 @@ int main(int argc, char *argv[]) {
 	auto exchanger_p = new NeighborhoodExchanger_t ( myFaces, yourFaces, neighborRankTo_LOCAL_OffsetAndExtent, neighborRankTo_REMOTE_OffsetAndExtent );
 	MPI_Barrier(MPI_COMM_WORLD);
 
-    //SimpleDeviceVector<double> myFaces( numElemPerProcess );
-    //SimpleDeviceVector<double> yourFaces( numElemPerProcess );
     
     // Initialize the variable elements by GPU kernel
     int blockSize = 256;
@@ -460,15 +464,15 @@ int main(int argc, char *argv[]) {
     pStream1->sync();
 
         
-	
-	if (myrank==0) std::cout << "yourFaces Before Exchange:" << std::endl;
-	for (int p = 0; p < numranks; p++)
-	{
-		if (p==myrank) {
-			std::cout << "P " << p << ": " << makeCSLstr(host_result) << std::endl;
-			MPI_Barrier(MPI_COMM_WORLD);  // barrier actual *not* sequentially ordering stdout on Perlmutter / Slurm sys
-		}
-	}
+	// Initialization Diagnostics:
+	// if (myrank==0) std::cout << "yourFaces Before Exchange:" << std::endl;
+	// for (int p = 0; p < numranks; p++)
+	// {
+	// 	if (p==myrank) {
+	// 		std::cout << "P " << p << ": " << makeCSLstr(host_result) << std::endl;
+	// 		MPI_Barrier(MPI_COMM_WORLD);  // barrier actual *not* sequentially ordering stdout on Perlmutter / Slurm sys
+	// 	}
+	// }
 
 	exchanger_p->exposureEpochBegin();
 	exchanger_p->updateTargets();
@@ -477,14 +481,15 @@ int main(int argc, char *argv[]) {
 	pStream1->memcpy( &host_result[0], yourFaces.device_ptr(), num_faces_local*sizeof(double));
     pStream1->sync();
 	
-	if (myrank==0) std::cout << "yourFaces After Exchange:" << std::endl;
-	for (int p = 0; p < numranks; p++)
-	{
-		if (p==myrank) {
-			std::cout << "P " << p << ": " << makeCSLstr(host_result) << std::endl;
-			MPI_Barrier(MPI_COMM_WORLD);  // barrier actual *not* sequentially ordering stdout on Perlmutter / Slurm sys
-		}
-	}
+	// Output Diagnostics:
+	// if (myrank==0) std::cout << "yourFaces After Exchange:" << std::endl;
+	// for (int p = 0; p < numranks; p++)
+	// {
+	// 	if (p==myrank) {
+	// 		std::cout << "P " << p << ": " << makeCSLstr(host_result) << std::endl;
+	// 		MPI_Barrier(MPI_COMM_WORLD);  // barrier actual *not* sequentially ordering stdout on Perlmutter / Slurm sys
+	// 	}
+	// }
 
 	getComputeDevice().freeStream(pStream1);
     int dlclose_results = dlclose(libhandle);
@@ -517,9 +522,11 @@ void debugger_attach_opportunity()
         std::stringstream ss( pPauseEnv );
         ss >> pauseID;
         if (pauseID == myID) {
-            std::cout << "Pausing to allow for debugger to attach to rank " << pauseID << " process id " << getpid() << "..." << std::endl;
+            std::cerr << "Pausing to allow for debugger to attach to rank " << pauseID << " process id " << getpid() << "..." << std::endl;
             while ( holder==0)
                 sleep(1);
         }
     }
 }
+
+

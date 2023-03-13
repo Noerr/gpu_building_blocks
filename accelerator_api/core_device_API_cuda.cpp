@@ -13,6 +13,10 @@
 #include <stdexcept>
 #include <vector>
 
+//for the uuid print
+#include <tuple>
+#include <iomanip>
+
 
 void throw_on_cuda_error( cudaError_t code, const char *file, int line)
 {
@@ -35,6 +39,43 @@ ComputeDevice & getComputeDevice()
 {
 	return _one_and_only_CUDA_device;
 
+}
+
+//TODO:  no actual state association with ComputeDevice class.  that class hasn't been designed to have instances yet.
+void setComputeDevice(int device_numerator)
+{
+	int device_count;
+	cudaError_t res = cudaGetDeviceCount ( &device_count );
+	cudaError_t ret  = cudaSetDevice ( device_numerator % device_count ); throw_on_cuda_error(ret, __FILE__, __LINE__);
+}
+
+//source: https://stackoverflow.com/questions/68823023/set-cuda-device-by-uuid
+std::string uuid_print(cudaUUID_t a){
+  std::stringstream ss;
+  std::vector<std::tuple<int, int> > r = {{0,4}, {4,6}, {6,8}, {8,10}, {10,16}};
+  std::string sep="";
+  for (auto t : r){
+    ss << sep;
+    for (int i = std::get<0>(t); i < std::get<1>(t); i++)
+      ss << std::hex << std::setfill('0') << std::setw(2) << (unsigned)(unsigned char)a.bytes[i];
+	sep="-";
+  }
+  return ss.str();
+}
+
+std::string
+ComputeDevice::getGPUDeviceInfoString()
+{
+	std::stringstream ss;
+	int device_count, current_device;
+	cudaError_t res = cudaGetDeviceCount ( &device_count );
+	cudaError_t res2 = cudaGetDevice ( &current_device );
+	//cudaDevAttrPciBusId: PCI bus identifier of the device
+	cudaDeviceProp gpuProperties;
+	cudaError_t res3 = cudaGetDeviceProperties ( &gpuProperties, current_device );
+
+	ss << "Device " << current_device << " of " << device_count << " visible devices: id=" << uuid_print(gpuProperties.uuid) << " " << gpuProperties.name;
+	return ss.str();
 }
 
 DeviceStream *

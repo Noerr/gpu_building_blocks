@@ -119,7 +119,7 @@ private:
 		//TODO: move (this repetitive) init to dynamic load of library ... 
 		void * test1 = reinterpret_cast<void*>(initialize_element_kernel);
 		_kernel_map["initialize_element_kernel"] = new KernelFn(makeGeneric( test1 ));
-		printf("initialize_element_kernel:  %p ,  %p\n",  initialize_element_kernel,  _kernel_map.at("initialize_element_kernel")->toCUDA_kernel_fn() );
+		//printf("initialize_element_kernel:  %p ,  %p\n",  initialize_element_kernel,  _kernel_map.at("initialize_element_kernel")->toCUDA_kernel_fn() );
 		
 		void * test2 = reinterpret_cast<void*>(copy_element_kernel);
 		_kernel_map["copy_element_kernel"]       = new KernelFn( makeGeneric(test2));
@@ -152,7 +152,7 @@ enqueueKernelWork_1D( DeviceStream* pStream, const KernelFn * fn, int numBlocks,
 
 	cudaStream_t cudaStream = to_impl_type<cudaStream_t>( pStream );
 
-	printf("launching fn by ptr %p\n", cuda_kernel_fn);  fflush(stdout);
+	//printf("launching fn by ptr %p\n", cuda_kernel_fn);  fflush(stdout);
 	cudaError_t ret1 = 
     cudaLaunchKernel( cuda_kernel_fn, gridDim3, blockSize3, args, 0 /*shared*/, cudaStream ); throw_on_cuda_error( ret1 , __FILE__, __LINE__);
 
