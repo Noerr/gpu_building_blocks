@@ -113,5 +113,8 @@ NeighborhoodExchanger< DV_t, LO>::exposureEpochEnd()
 
 
 //bwah. template instantiation.
-template class DistributedVariable<double, short, size_t>;
-template class NeighborhoodExchanger<DistributedVariable<double, short, size_t>, short>;
+#ifndef LOCAL_ORDINAL_TYPE
+#define LOCAL_ORDINAL_TYPE int
+#endif
+template class DistributedVariable<double, LOCAL_ORDINAL_TYPE, size_t>;
+template class NeighborhoodExchanger<DistributedVariable<double, LOCAL_ORDINAL_TYPE, size_t>, LOCAL_ORDINAL_TYPE>;
