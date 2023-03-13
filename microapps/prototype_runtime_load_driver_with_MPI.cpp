@@ -18,17 +18,22 @@
 #include <tuple>
 #include <map>
 #include <algorithm>
-
+#include <chrono>
 #include <sstream>
 #include <iostream>
 #include <cstdlib>
+#include <limits>
 #include <unistd.h> //for sleep() and getpid()
 #include <assert.h>  // Define NDEBUG to disable
 
 #include <mpi.h>
 
 
-typedef size_t GO;  typedef short LO;
+typedef size_t GO;
+#ifndef LOCAL_ORDINAL_TYPE
+#define LOCAL_ORDINAL_TYPE int
+#endif
+typedef LOCAL_ORDINAL_TYPE LO;
 
 
 /**
@@ -89,7 +94,7 @@ LocalIndex localFaceOrdinal( int facedim, const std::vector<int> &multiIndex, co
 		lo =  2*numFacesPerDim
 		      + multiIndex[0]*dim0Stride + multiIndex[1]*dim1Stride + multiIndex[2];
 	}
-	assert(lo >=0 && lo < 3*boxDim[0]*boxDim[1]*boxDim[2]);
+	assert(lo >=0 && lo < 3*boxDim[0]*boxDim[1]*boxDim[2]);  // fails here have always been a max range issue for LocalIndex type.
 	return lo;
 }
 
@@ -173,12 +178,21 @@ createGlobalOrdinalDecomposition_3DstructuredFaces(int numElemPerProcess, int nu
 		std::cout << "Cube Element Grid Dims (per process): " << makeCSLstr(edims3) << " [though something more like cube faces are exchanged]."<< std::endl;
 	}
 	
-	// Working with FACES! not elements.  I'm prototyping a 3D box, so one extra face per dim...
-	int numFacesPerProcess = (edims3[0]+1)*(edims3[1]  )*(edims3[2]  )
+	// Working with FACES, not elements so about three unique faces per element, plus the global 3D box has one extra face per dim.
+	size_t numFacesPerProcess = (edims3[0]+1)*(edims3[1]  )*(edims3[2]  )
 	                        +(edims3[0]  )*(edims3[1]+1)*(edims3[2]  )
 	                        +(edims3[0]  )*(edims3[1]  )*(edims3[2]+1);
-	int numFaceGlobalOrdinalsPerProcess = 3* numElemPerProcess; // this doesn't count the duplicated shared faces
+	size_t numFaceGlobalOrdinalsPerProcess = 3* numElemPerProcess; // this doesn't count the duplicated shared faces
 	
+	if (numFacesPerProcess > std::numeric_limits<LocalIndex>::max() ) {
+		std::cerr << "Error: numFacesPerProcess="<< numFacesPerProcess << " exceeds local ordinal max range " << std::numeric_limits<LocalIndex>::max() << std::endl;
+		exit(1);
+	}
+	if (numFaceGlobalOrdinalsPerProcess*numProcesses > std::numeric_limits<GO>::max() ) {
+		std::cerr << "Error: Requested global ordinals exceeds global ordinal max range." << std::endl;
+		exit(1);
+	}
+
 	struct GO_PE_pair
 	{
 		GlobalOrdinal_t go;
@@ -301,7 +315,7 @@ createGlobalOrdinalDecomposition_3DstructuredFaces(int numElemPerProcess, int nu
 		if (pair_PE== myrank)
 			continue;
 		LocalIndex* recvBuf = &(i.second.offset);
-		*recvBuf = -1;
+		//*recvBuf = -1;
 		const LocalIndex* sendBuf = &(neighborRankTo_LOCAL_OffsetAndExtent.at(pair_PE).offset);
 		
 		MPI_Sendrecv(sendBuf, 1, MPI_Datatypes<LocalIndex>::mpi_type(),
@@ -459,11 +473,9 @@ int main(int argc, char *argv[]) {
 
     std::vector<double> host_result(num_faces_local);
     
-    pStream1->memcpy( &host_result[0], yourFaces.device_ptr(), num_faces_local*sizeof(double));
-    
-    pStream1->sync();
+	pStream1->sync();
 
-        
+
 	// Initialization Diagnostics:
 	// if (myrank==0) std::cout << "yourFaces Before Exchange:" << std::endl;
 	// for (int p = 0; p < numranks; p++)
@@ -474,10 +486,28 @@ int main(int argc, char *argv[]) {
 	// 	}
 	// }
 
-	exchanger_p->exposureEpochBegin();
-	exchanger_p->updateTargets();
-	exchanger_p->exposureEpochEnd();
-	
+	int numExchangeIterations=20;
+	auto iterStart = std::chrono::high_resolution_clock::now();
+	decltype(iterStart) firstIterStop;
+	for (int count=0; count < numExchangeIterations; count++) {
+		exchanger_p->exposureEpochBegin();
+		exchanger_p->updateTargets();
+		exchanger_p->exposureEpochEnd();
+		if (count==0)
+			firstIterStop = std::chrono::high_resolution_clock::now();
+	}
+	auto lastIterStop = std::chrono::high_resolution_clock::now();
+
+	if (myrank==0 && numExchangeIterations>0) {
+		std::cout << "Completed " << numExchangeIterations << " ghost face exchange iterations." << std::endl;
+		long long first_microseconds = std::chrono::duration_cast<std::chrono::microseconds>(firstIterStop - iterStart).count();
+		long long remaining_microseconds = std::chrono::duration_cast<std::chrono::microseconds>(lastIterStop-firstIterStop).count();
+
+		std::cout << "    First epoch: " << first_microseconds << " microseconds" << std::endl;
+		if (numExchangeIterations>1)
+			std::cout << "    Remaining epochs: " << remaining_microseconds << " microseconds,  " << remaining_microseconds/double(numExchangeIterations-1) << " microseconds per iteration." << std::endl;		
+
+	}
 	pStream1->memcpy( &host_result[0], yourFaces.device_ptr(), num_faces_local*sizeof(double));
     pStream1->sync();
 	
