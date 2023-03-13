@@ -170,7 +170,7 @@ createGlobalOrdinalDecomposition_3DstructuredFaces(int numElemPerProcess, int nu
 	
 	if (myrank==0) {
 		std::cout << "Process Grid Dims: " << makeCSLstr(pdims3) << std::endl;
-		std::cout << "Element Grid Dims (per process): " << makeCSLstr(edims3) << std::endl;
+		std::cout << "Cube Element Grid Dims (per process): " << makeCSLstr(edims3) << " [though something more like cube faces are exchanged]."<< std::endl;
 	}
 	
 	// Working with FACES! not elements.  I'm prototyping a 3D box, so one extra face per dim...
