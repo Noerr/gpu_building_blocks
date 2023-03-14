@@ -26,6 +26,11 @@ nvcc --shared -o lib_kernel_parts.so cuda_kernel_parts.cu --compiler-options '-f
 #include "kernels_module_interface.h"
 #include "stream_implementation_cuda.h"
 
+// bwah. ideally the kernel definitions only appear once, but i wasted two much time trying to sort out a preprocessor way to achieve this aim.
+#if defined(KERNEL_LINK_METHOD_RTC)
+#include <nvrtc.h>
+namespace {
+const char* _kernels_string = R"rawstring(
 
 typedef size_t GO;  typedef short LO;
 
@@ -47,6 +52,30 @@ void copy_element_kernel(LO lid, const double *e_src, double *e_dst)
       e_dst[i] = e_src[i] + 1000;
 }
 
+)rawstring";
+}
+#else
+
+typedef size_t GO;  typedef short LO;
+
+__global__
+void initialize_element_kernel(LO lid, double *e , int myProcessID)
+{
+  int index = blockIdx.x * blockDim.x + threadIdx.x;
+  int stride = blockDim.x * gridDim.x;
+  for (int i = index; i < lid; i += stride)
+    e[i] = myProcessID*10000 + i;
+}
+
+__global__
+void copy_element_kernel(LO lid, const double *e_src, double *e_dst)
+{
+  int index = blockIdx.x * blockDim.x + threadIdx.x;
+  int stride = blockDim.x * gridDim.x;
+  for (int i = index; i < lid; i += stride)
+      e_dst[i] = e_src[i] + 1000;
+}
+#endif
 
 class KernelFn
 {
@@ -116,6 +145,51 @@ private:
 	
 	void load_more()
 	{
+#if defined(KERNEL_LINK_METHOD_RTC)
+	//build the kernels from _kernels_string
+	// Create an instance of nvrtcProgram
+	nvrtcProgram prog;
+	nvrtcCreateProgram(&prog,         // prog
+						_kernels_string,  // src_string
+						"saxpy.cu",    // name
+						0,             // numHeaders
+						NULL,          // headers
+						NULL));        // includeNames
+	// Compile the program with fmad disabled.
+	// Note: Can specify GPU target architecture explicitly with '-arch' flag.
+	const char *opts[] = {"--fmad=false"};
+	nvrtcResult compileResult = nvrtcCompileProgram(prog,  // prog
+													1,     // numOptions
+													opts); // options
+	// Obtain compilation log from the program.
+	size_t logSize;
+	NVRTC_SAFE_CALL(nvrtcGetProgramLogSize(prog, &logSize));
+	char *log = new char[logSize];
+	NVRTC_SAFE_CALL(nvrtcGetProgramLog(prog, log));
+	std::cout << log << '\n';
+	delete[] log;
+	if (compileResult != NVRTC_SUCCESS) {
+	exit(1);
+	}
+	// Obtain PTX from the program.
+	size_t ptxSize;
+	NVRTC_SAFE_CALL(nvrtcGetPTXSize(prog, &ptxSize));
+	char *ptx = new char[ptxSize];
+	NVRTC_SAFE_CALL(nvrtcGetPTX(prog, ptx));
+	// Destroy the program.
+	NVRTC_SAFE_CALL(nvrtcDestroyProgram(&prog));
+	// Load the generated PTX and get a handle to the SAXPY kernel.
+	CUdevice cuDevice;
+	CUcontext context;
+	CUmodule module;
+	CUfunction kernel;
+	CUDA_SAFE_CALL(cuInit(0));
+	CUDA_SAFE_CALL(cuDeviceGet(&cuDevice, 0));
+	CUDA_SAFE_CALL(cuCtxCreate(&context, 0, cuDevice));
+	CUDA_SAFE_CALL(cuModuleLoadDataEx(&module, ptx, 0, 0, 0));
+	CUDA_SAFE_CALL(cuModuleGetFunction(&kernel, module, "saxpy"));
+	// Generate input for execution, and create output buffers.
+#else
 		//TODO: move (this repetitive) init to dynamic load of library ... 
 		void * test1 = reinterpret_cast<void*>(initialize_element_kernel);
 		_kernel_map["initialize_element_kernel"] = new KernelFn(makeGeneric( test1 ));
@@ -123,6 +197,7 @@ private:
 		
 		void * test2 = reinterpret_cast<void*>(copy_element_kernel);
 		_kernel_map["copy_element_kernel"]       = new KernelFn( makeGeneric(test2));
+#endif
 	}
 	
 	

@@ -12,8 +12,11 @@
 #include "kernels_module_interface.h"
 #include "distributed_variable.h"
 
+
+#ifdef KERNEL_LINK_METHOD_RUNTIME_MODULE
 #include <dlfcn.h> //for the runtime dlopen and related functionality
-//#include <stdio.h>
+#endif
+
 #include <vector>
 #include <tuple>
 #include <map>
@@ -369,26 +372,39 @@ createGlobalOrdinalDecomposition_3DstructuredFaces(int numElemPerProcess, int nu
  */
 int main(int argc, char *argv[]) {
 
-    if (argc > 5 || argc < 4) {
-    std::cerr << "Exactly 3 arguments expected:   numElements  runtimeModuleName.so  kernelName" <<std::endl;
+	int numExpectedArguments = 3;
+	int module_arg_adjust = 0;
+#ifdef KERNEL_LINK_METHOD_RUNTIME_MODULE
+	numExpectedArguments++;
+	module_arg_adjust++;
+#endif
+
+    if (argc != numExpectedArguments) {
+    std::cerr << "Exactly " << (numExpectedArguments-1) << " arguments expected:   numElements  "
+#ifdef KERNEL_LINK_METHOD_RUNTIME_MODULE
+	"runtimeModuleName.so  "
+#endif
+	"kernelName" <<std::endl;
     return 1;
     }
     
-    int numElemPerProcess = 8;
-    if (argc > 1) {
+    int numElemPerProcess;
+    {
         std::stringstream arg1(argv[1]);
         arg1 >> numElemPerProcess;
     }
 
+#ifdef KERNEL_LINK_METHOD_RUNTIME_MODULE
     std::string runtime_module_filename;
-    if (argc > 2) {
-        std::stringstream arg2(argv[2]);
+    {
+        std::stringstream arg2(argv[numExpectedArguments-2]);
         arg2 >> runtime_module_filename;
     }
+#endif
 
     std::string kernel_name;
-    if (argc > 3) {
-        std::stringstream arg3(argv[3]);
+    {
+        std::stringstream arg3(argv[numExpectedArguments-1+module_arg_adjust]);
         arg3 >> kernel_name;
     }
 
@@ -402,17 +418,17 @@ int main(int argc, char *argv[]) {
 	setComputeDevice( myrank ); // bug on Perlmutter cray-mpich requires cpu-bind=none.  Then default placement is all ranks on same gpu 0.
 	//std::cout << "PE " << myrank << ": GPU " << ComputeDevice::getGPUDeviceInfoString() << std::endl;
 
+	typedef decltype(&get_kernel_by_name) get_kernel_by_name_fn_t;
+	typedef decltype(&enqueueKernelWork_1D) enqueueKernelWork_fn_t;
+
+#ifdef KERNEL_LINK_METHOD_RUNTIME_MODULE
     void * libhandle = dlopen(runtime_module_filename.c_str(), RTLD_NOW | RTLD_DEEPBIND ); //longterm preference: RTLD_LAZY);
     if (libhandle == nullptr) {
         std::cerr << "Error with dlopen " << runtime_module_filename.c_str() <<std::endl << dlerror() << std::endl;
         return 1;
     }
 
-    
-    typedef decltype(&get_kernel_by_name) get_kernel_by_name_fn_t;
-    typedef decltype(&enqueueKernelWork_1D) enqueueKernelWork_fn_t;
-
-    const char* dlerr_str;
+	const char* dlerr_str;
     
     dlerr_str = dlerror();
     get_kernel_by_name_fn_t get_kernel_by_name_module1 = reinterpret_cast<get_kernel_by_name_fn_t>(dlsym(libhandle, "get_kernel_by_name") );
@@ -430,7 +446,13 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
+#elif defined(KERNEL_LINK_METHOD_COMPILE_TIME) || defined(KERNEL_LINK_METHOD_RTC)
+	get_kernel_by_name_fn_t get_kernel_by_name_module1 = get_kernel_by_name;
+	enqueueKernelWork_fn_t enqueueKernelWork_module1 = enqueueKernelWork_1D;
 
+#else
+#error "A KERNEL_LINK_METHOD_* macro is not defined."
+#endif
 
 
 	typedef DistributedVariable<double, LO, GO> DV_t;
@@ -522,7 +544,9 @@ int main(int argc, char *argv[]) {
 	// }
 
 	getComputeDevice().freeStream(pStream1);
+#ifdef KERNEL_LINK_METHOD_RUNTIME_MODULE
     int dlclose_results = dlclose(libhandle);
+#endif
 
     return 0;
 }

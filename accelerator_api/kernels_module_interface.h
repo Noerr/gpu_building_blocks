@@ -16,6 +16,15 @@
 #ifndef KERNELS_MODULE_RUNTIME_H
 #define KERNELS_MODULE_RUNTIME_H
 
+//establish default behavior to link  kernels at runtime by dyld method
+#ifndef KERNEL_LINK_METHOD_RUNTIME_MODULE
+#ifndef KERNEL_LINK_METHOD_COMPILE_TIME
+#ifndef KERNEL_LINK_METHOD_RTC
+#define KERNEL_LINK_METHOD_RUNTIME_MODULE
+#endif
+#endif
+#endif
+
 class KernelFn;
 class DeviceStream;
 

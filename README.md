@@ -14,9 +14,22 @@ gpu_building_blocks/microapps> CC -I../accelerator_api -I../distributed_variable
 ```
 
 ### Executable driver that additionally adds MPI one-side "PUT" messaging mimicing an unstructured ghost face exchange 
+
+The runtime load shared library module approach:
 ```
 CC  -std=c++17 -I../accelerator_api -I../distributed_variable -o cuda_runtime_kernel_link_prototype_wMPI.exe  ../accelerator_api/core_device_API_cuda.cpp ../distributed_variable/distributed_variable.cpp  prototype_runtime_load_driver_with_MPI.cpp -ldl -lcudart -lnvToolsExt
 ```
+
+More typical mixed-source kernel and host code compile time approach:
+```
+CC -DKERNEL_LINK_METHOD_COMPILE_TIME -std=c++17 -I../accelerator_api -I../distributed_variable -o cuda_compile_time_prototype_wMPI.exe  ../accelerator_api/core_device_API_cuda.cpp ../distributed_variable/distributed_variable.cpp  prototype_runtime_load_driver_with_MPI.cpp  cuda_kernel_parts.cu  -lcudart -lnvToolsExt
+```
+
+Runtime comilation of kernels from source code strings:
+```
+CC -DKERNEL_LINK_METHOD_RTC  -std=c++17 -I../accelerator_api -I../distributed_variable -o cuda_RTC_prototype_wMPI.exe  ../accelerator_api/core_device_API_cuda.cpp ../distributed_variable/distributed_variable.cpp  prototype_runtime_load_driver_with_MPI.cpp  cuda_kernel_parts.cu  -lcudart -lnvToolsExt -lnvrtc
+```
+
 
 ### An example kernel library for runtime works with either prototype driver microapp
 ```
