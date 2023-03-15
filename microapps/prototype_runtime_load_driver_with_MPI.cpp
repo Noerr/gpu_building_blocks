@@ -483,6 +483,7 @@ int main(int argc, char *argv[]) {
     // Compute Device and stream(s)
     DeviceStream * pStream1 = getComputeDevice().createStream();
 
+	Tracing::traceRangePush("kernels on stream1");
     // kernel run #1 : initialize elements based on runtime argument
     void * args1[] = {&num_faces_local, &my_faces_dev_ptr, &myrank};
     const KernelFn * user_choice_kernel = get_kernel_by_name_module1( kernel_name.c_str() );
@@ -496,7 +497,7 @@ int main(int argc, char *argv[]) {
     std::vector<double> host_result(num_faces_local);
     
 	pStream1->sync();
-
+	Tracing::traceRangePop();
 
 	// Initialization Diagnostics:
 	// if (myrank==0) std::cout << "yourFaces Before Exchange:" << std::endl;
