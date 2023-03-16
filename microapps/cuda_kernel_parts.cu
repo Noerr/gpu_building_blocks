@@ -86,13 +86,15 @@ public:
 
 	CUfunction to_CU_fn() const
 	{
-		return *(static_cast<const CUfunction*>(_mbr_generic_ptr));
+		return _mbr_cufn;
 	}
 
 	KernelFn( CUfunction cufn )
+	: _mbr_cufn(cufn)
 	{
-		_mbr_generic_ptr = new CUfunction(cufn);
 	}
+	private:
+	CUfunction _mbr_cufn;
 #else
 	const void * toCUDA_kernel_fn() const
 	{
@@ -101,11 +103,11 @@ public:
 
 
 	KernelFn(const void* fn_ptr) : _mbr_generic_ptr(fn_ptr) {}
+
+	private:
+	const void * _mbr_generic_ptr;
 #endif
 
-private:
-	const void * _mbr_generic_ptr;
-	
 };
 
 
@@ -122,12 +124,6 @@ void throw_on_cuda_error( cudaError_t code, const char *file, int line)
 }
 
 
-
-template <typename CUDA_fn_type>
-KernelFn makeGeneric( CUDA_fn_type cuda_kernel_fn)
-{
-	return KernelFn(static_cast<const void *>(cuda_kernel_fn));
-}
 
 
 class KernelStore
@@ -157,9 +153,20 @@ private:
 
 	typedef std::map<std::string,  const KernelFn * >  name_to_GPU_kernel_map_t;
 	
-	
-	void load_more()
-	{
+	//TODO: move (this repetitive) init to dynamic load of library ...
+	void load_more();
+
+		
+	name_to_GPU_kernel_map_t _kernel_map;
+};
+
+KernelStore _kernel_store;
+} // unnamed namespace
+
+
+void
+KernelStore::load_more()
+{
 #if defined(KERNEL_LINK_METHOD_RTC)
 	//build the kernels from _kernels_string
 	// Create an instance of nvrtcProgram
@@ -213,33 +220,17 @@ private:
 	//void * test2 = reinterpret_cast<void*>(cu_fn_copy_element_kernel);
 	//TODO: move (this repetitive) init to dynamic load of library ... 
 	_kernel_map["initialize_element_kernel"] = new KernelFn( cu_fn_initialize_element_kernel );
-	//printf("initialize_element_kernel:  %p ,  %p\n",  initialize_element_kernel,  _kernel_map.at("initialize_element_kernel")->toCUDA_kernel_fn() );
 	_kernel_map["copy_element_kernel"]       = new KernelFn( cu_fn_copy_element_kernel );
 	
-#else
-		//TODO: move (this repetitive) init to dynamic load of library ... 
-		void * test1 = reinterpret_cast<void*>(initialize_element_kernel);
-		//_kernel_map["initialize_element_kernel"] = new KernelFn(makeGeneric( test1 ));
-		//printf("initialize_element_kernel:  %p ,  %p\n",  initialize_element_kernel,  _kernel_map.at("initialize_element_kernel")->toCUDA_kernel_fn() );
-		
-		void * test2 = reinterpret_cast<void*>(copy_element_kernel);
-		//_kernel_map["copy_element_kernel"]       = new KernelFn( makeGeneric(test2));
+#else 
+		void * fn1 = reinterpret_cast<void*>(initialize_element_kernel);
+		void * fn2 = reinterpret_cast<void*>(copy_element_kernel);
 
-		//TODO: move (this repetitive) init to dynamic load of library ... 
-		_kernel_map["initialize_element_kernel"] = new KernelFn(makeGeneric( test1 ));
-		//printf("initialize_element_kernel:  %p ,  %p\n",  initialize_element_kernel,  _kernel_map.at("initialize_element_kernel")->toCUDA_kernel_fn() );
-		_kernel_map["copy_element_kernel"]       = new KernelFn( makeGeneric(test2));
+		_kernel_map["initialize_element_kernel"] = new KernelFn( fn1 );
+		_kernel_map["copy_element_kernel"]       = new KernelFn( fn2 );
 #endif
 
-	}
-	
-	
-	name_to_GPU_kernel_map_t _kernel_map;
-};
-
-KernelStore _kernel_store;
-} // unnamed namespace
-
+}
 
 extern "C"  {
 
