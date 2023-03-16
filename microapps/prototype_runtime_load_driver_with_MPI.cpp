@@ -373,47 +373,46 @@ createGlobalOrdinalDecomposition_3DstructuredFaces(int numElemPerProcess, int nu
 int main(int argc, char *argv[]) {
 
 	int numExpectedArguments = 3;
-	int module_arg_adjust = 0;
 #ifdef KERNEL_LINK_METHOD_RUNTIME_MODULE
 	numExpectedArguments++;
 	module_arg_adjust++;
 #endif
 
-    if (argc != numExpectedArguments) {
-    std::cerr << "Exactly " << (numExpectedArguments-1) << " arguments expected:   numElements  "
+	if (argc != numExpectedArguments) {
+	std::cerr << "Exactly " << (numExpectedArguments-1) << " arguments expected:   numElements  "
 #ifdef KERNEL_LINK_METHOD_RUNTIME_MODULE
 	"runtimeModuleName.so  "
 #endif
 	"kernelName" <<std::endl;
-    return 1;
-    }
-    
-    int numElemPerProcess;
-    {
-        std::stringstream arg1(argv[1]);
-        arg1 >> numElemPerProcess;
-    }
+	return 1;
+	}
+
+	int numElemPerProcess;
+	{
+		std::stringstream arg1(argv[1]);
+		arg1 >> numElemPerProcess;
+	}
 
 #ifdef KERNEL_LINK_METHOD_RUNTIME_MODULE
-    std::string runtime_module_filename;
-    {
-        std::stringstream arg2(argv[numExpectedArguments-2]);
-        arg2 >> runtime_module_filename;
-    }
+	std::string runtime_module_filename;
+	{
+		std::stringstream arg2(argv[numExpectedArguments-2]);
+		arg2 >> runtime_module_filename;
+	}
 #endif
 
-    std::string kernel_name;
-    {
-        std::stringstream arg3(argv[numExpectedArguments-1+module_arg_adjust]);
-        arg3 >> kernel_name;
-    }
+	std::string kernel_name;
+	{
+		std::stringstream arg3(argv[numExpectedArguments-1]);
+		arg3 >> kernel_name;
+	}
 
-    int numranks, myrank;
-    
-    MPI_Init(&argc, &argv);
-    MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
-    MPI_Comm_size(MPI_COMM_WORLD, &numranks);
-    debugger_attach_opportunity();
+	int numranks, myrank;
+
+	MPI_Init(&argc, &argv);
+	MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
+	MPI_Comm_size(MPI_COMM_WORLD, &numranks);
+	debugger_attach_opportunity();
 
 	setComputeDevice( myrank ); // bug on Perlmutter cray-mpich requires cpu-bind=none.  Then default placement is all ranks on same gpu 0.
 	//std::cout << "PE " << myrank << ": GPU " << ComputeDevice::getGPUDeviceInfoString() << std::endl;
@@ -422,29 +421,29 @@ int main(int argc, char *argv[]) {
 	typedef decltype(&enqueueKernelWork_1D) enqueueKernelWork_fn_t;
 
 #ifdef KERNEL_LINK_METHOD_RUNTIME_MODULE
-    void * libhandle = dlopen(runtime_module_filename.c_str(), RTLD_NOW | RTLD_DEEPBIND ); //longterm preference: RTLD_LAZY);
-    if (libhandle == nullptr) {
-        std::cerr << "Error with dlopen " << runtime_module_filename.c_str() <<std::endl << dlerror() << std::endl;
-        return 1;
-    }
+	void * libhandle = dlopen(runtime_module_filename.c_str(), RTLD_NOW | RTLD_DEEPBIND ); //longterm preference: RTLD_LAZY);
+	if (libhandle == nullptr) {
+		std::cerr << "Error with dlopen " << runtime_module_filename.c_str() <<std::endl << dlerror() << std::endl;
+		return 1;
+	}
 
 	const char* dlerr_str;
-    
-    dlerr_str = dlerror();
-    get_kernel_by_name_fn_t get_kernel_by_name_module1 = reinterpret_cast<get_kernel_by_name_fn_t>(dlsym(libhandle, "get_kernel_by_name") );
-    dlerr_str = dlerror();
-    if (dlerr_str != NULL) {
-        std::cerr << "Error with dlsym: " <<  dlerr_str << std::endl;
-        return 1;
-    }
 
-    dlerror();
-    enqueueKernelWork_fn_t enqueueKernelWork_module1 = reinterpret_cast<enqueueKernelWork_fn_t>(dlsym(libhandle, "enqueueKernelWork_1D"  ) );
-    dlerr_str = dlerror();
-    if (dlerr_str != NULL) {
-        std::cerr << "Error with dlsym: " <<  dlerr_str << std::endl;
-        return 1;
-    }
+	dlerr_str = dlerror();
+	get_kernel_by_name_fn_t get_kernel_by_name_module1 = reinterpret_cast<get_kernel_by_name_fn_t>(dlsym(libhandle, "get_kernel_by_name") );
+	dlerr_str = dlerror();
+	if (dlerr_str != NULL) {
+		std::cerr << "Error with dlsym: " <<  dlerr_str << std::endl;
+		return 1;
+	}
+
+	dlerror();
+	enqueueKernelWork_fn_t enqueueKernelWork_module1 = reinterpret_cast<enqueueKernelWork_fn_t>(dlsym(libhandle, "enqueueKernelWork_1D"  ) );
+	dlerr_str = dlerror();
+	if (dlerr_str != NULL) {
+		std::cerr << "Error with dlsym: " <<  dlerr_str << std::endl;
+		return 1;
+	}
 
 #elif defined(KERNEL_LINK_METHOD_COMPILE_TIME) || defined(KERNEL_LINK_METHOD_RTC)
 	get_kernel_by_name_fn_t get_kernel_by_name_module1 = get_kernel_by_name;
@@ -460,42 +459,42 @@ int main(int argc, char *argv[]) {
 	typedef NeighborhoodExchanger_t::LocalOffsetAndExtent LocalOffsetAndExtent;
 
 	typedef  std::map<int, LocalOffsetAndExtent> OffsetMap_t;
-    
+
 	// C++17 structured binding:
-    const auto [ myGlobalOrdinals, neighborRankTo_LOCAL_OffsetAndExtent, neighborRankTo_REMOTE_OffsetAndExtent ] =
-    createGlobalOrdinalDecomposition_3DstructuredFaces<LO, GO, OffsetMap_t>( numElemPerProcess, numranks, myrank );
+	const auto [ myGlobalOrdinals, neighborRankTo_LOCAL_OffsetAndExtent, neighborRankTo_REMOTE_OffsetAndExtent ] =
+	createGlobalOrdinalDecomposition_3DstructuredFaces<LO, GO, OffsetMap_t>( numElemPerProcess, numranks, myrank );
 	int num_faces_local = myGlobalOrdinals.size();
-    
-    DV_t myFaces( myGlobalOrdinals );
+
+	DV_t myFaces( myGlobalOrdinals );
 	DV_t yourFaces( myGlobalOrdinals );
-	
+
 	auto exchanger_p = new NeighborhoodExchanger_t ( myFaces, yourFaces, neighborRankTo_LOCAL_OffsetAndExtent, neighborRankTo_REMOTE_OffsetAndExtent );
 	MPI_Barrier(MPI_COMM_WORLD);
 
-    
-    // Initialize the variable elements by GPU kernel
-    int blockSize = 256;
-    int numBlocks = (num_faces_local + blockSize - 1) / blockSize;
 
-    void * my_faces_dev_ptr = myFaces.device_ptr();
+	// Initialize the variable elements by GPU kernel
+	int blockSize = 256;
+	int numBlocks = (num_faces_local + blockSize - 1) / blockSize;
+
+	void * my_faces_dev_ptr = myFaces.device_ptr();
 	void * your_faces_dev_ptr = yourFaces.device_ptr();
 
-    // Compute Device and stream(s)
-    DeviceStream * pStream1 = getComputeDevice().createStream();
+	// Compute Device and stream(s)
+	DeviceStream * pStream1 = getComputeDevice().createStream();
 
 	Tracing::traceRangePush("kernels on stream1");
-    // kernel run #1 : initialize elements based on runtime argument
-    void * args1[] = {&num_faces_local, &my_faces_dev_ptr, &myrank};
-    const KernelFn * user_choice_kernel = get_kernel_by_name_module1( kernel_name.c_str() );
-    enqueueKernelWork_module1( pStream1, user_choice_kernel, numBlocks, blockSize, args1);
-    
-	// kernel run #2 : copy elements
-    void * args2[] = {&num_faces_local, &my_faces_dev_ptr, &your_faces_dev_ptr};
-    const KernelFn * copy_element_kernel = get_kernel_by_name_module1( "copy_element_kernel" );
-    enqueueKernelWork_module1( pStream1, copy_element_kernel, numBlocks, blockSize, args2);
+	// kernel run #1 : initialize elements based on runtime argument
+	void * args1[] = {&num_faces_local, &my_faces_dev_ptr, &myrank};
+	const KernelFn * user_choice_kernel = get_kernel_by_name_module1( kernel_name.c_str() );
+	enqueueKernelWork_module1( pStream1, user_choice_kernel, numBlocks, blockSize, args1);
 
-    std::vector<double> host_result(num_faces_local);
-    
+	// kernel run #2 : copy elements
+	void * args2[] = {&num_faces_local, &my_faces_dev_ptr, &your_faces_dev_ptr};
+	const KernelFn * copy_element_kernel = get_kernel_by_name_module1( "copy_element_kernel" );
+	enqueueKernelWork_module1( pStream1, copy_element_kernel, numBlocks, blockSize, args2);
+
+	std::vector<double> host_result(num_faces_local);
+
 	pStream1->sync();
 	Tracing::traceRangePop();
 
@@ -532,8 +531,8 @@ int main(int argc, char *argv[]) {
 
 	}
 	pStream1->memcpy( &host_result[0], yourFaces.device_ptr(), num_faces_local*sizeof(double));
-    pStream1->sync();
-	
+	pStream1->sync();
+
 	// Output Diagnostics:
 	// if (myrank==0) std::cout << "yourFaces After Exchange:" << std::endl;
 	// for (int p = 0; p < numranks; p++)
@@ -546,10 +545,10 @@ int main(int argc, char *argv[]) {
 
 	getComputeDevice().freeStream(pStream1);
 #ifdef KERNEL_LINK_METHOD_RUNTIME_MODULE
-    int dlclose_results = dlclose(libhandle);
+	int dlclose_results = dlclose(libhandle);
 #endif
 
-    return 0;
+	return 0;
 }
 
 template <typename T>
@@ -568,20 +567,20 @@ std::string makeCSLstr( std::vector<T> v )
 
 void debugger_attach_opportunity()
 {
-    // usefull pause when debugging MPI runs based on environment variable
-    int pauseID, myID;
-    MPI_Comm_rank( /*(ompi_communicator_t*)*/ MPI_COMM_WORLD, &myID);
-    volatile int holder = 0;
-    if (const char* pPauseEnv = std::getenv("DEBUG_PAUSE_FOR_MPI_ID"))
-    {
-        std::stringstream ss( pPauseEnv );
-        ss >> pauseID;
-        if (pauseID == myID) {
-            std::cerr << "Pausing to allow for debugger to attach to rank " << pauseID << " process id " << getpid() << "..." << std::endl;
-            while ( holder==0)
-                sleep(1);
-        }
-    }
+	// usefull pause when debugging MPI runs based on environment variable
+	int pauseID, myID;
+	MPI_Comm_rank( /*(ompi_communicator_t*)*/ MPI_COMM_WORLD, &myID);
+	volatile int holder = 0;
+	if (const char* pPauseEnv = std::getenv("DEBUG_PAUSE_FOR_MPI_ID"))
+	{
+		std::stringstream ss( pPauseEnv );
+		ss >> pauseID;
+		if (pauseID == myID) {
+			std::cerr << "Pausing to allow for debugger to attach to rank " << pauseID << " process id " << getpid() << "..." << std::endl;
+			while ( holder==0)
+				sleep(1);
+		}
+	}
 }
 
 
