@@ -207,9 +207,9 @@ KernelStore::load_more()
 	hipFunction_t hip_fn_initialize_element_kernel;
 	hipFunction_t hip_fn_copy_element_kernel;
 	
-	hipModuleLoadDataEx(&module, deviceCode, 0, 0, 0);
-	hipModuleGetFunction(&hip_fn_initialize_element_kernel, module, "initialize_element_kernel");
-	hipModuleGetFunction(&hip_fn_copy_element_kernel, module, "copy_element_kernel");
+	throw_on_hip_error(hipModuleLoadDataEx(&module, deviceCode, 0, 0, 0), __FILE__, __LINE__);
+	throw_on_hip_error(hipModuleGetFunction(&hip_fn_initialize_element_kernel, module, "initialize_element_kernel"), __FILE__, __LINE__);
+	throw_on_hip_error(hipModuleGetFunction(&hip_fn_copy_element_kernel, module, "copy_element_kernel"), __FILE__, __LINE__);
 	delete[] deviceCode;
 
 	_kernel_map["initialize_element_kernel"] = new KernelFn( hip_fn_initialize_element_kernel );
@@ -252,11 +252,11 @@ enqueueKernelWork_1D( DeviceStream* pStream, const KernelFn * fn, int numBlocks,
 
 #if defined(KERNEL_LINK_METHOD_RTC)
 	hipFunction_t hip_kernel_fn = fn->to_HIP_fn();
-	hipModuleLaunchKernel(hip_kernel_fn,
+	throw_on_hip_error(hipModuleLaunchKernel(hip_kernel_fn,
                    numBlocks, 1, 1,    // grid dim
                    blockSize, 1, 1,   // block dim
                    0, hipStream /* casting hipStream_t to hipStream_t */,             // shared mem and stream
-                   args, 0);  
+                   args, 0), __FILE__, __LINE__);
 #else
 	const void * p_HIP_kernel_fn = fn->toHIP_kernel_fn_ptr();
 	//printf("launching fn by ptr %p\n", hip_kernel_fn);  fflush(stdout);
