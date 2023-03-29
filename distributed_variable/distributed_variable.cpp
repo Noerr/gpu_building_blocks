@@ -118,3 +118,11 @@ NeighborhoodExchanger< DV_t, LO>::exposureEpochEnd()
 #endif
 template class DistributedVariable<double, LOCAL_ORDINAL_TYPE, size_t>;
 template class NeighborhoodExchanger<DistributedVariable<double, LOCAL_ORDINAL_TYPE, size_t>, LOCAL_ORDINAL_TYPE>;
+
+
+template<> MPI_Datatype MPI_Datatypes<short>::mpi_type() { return MPI_SHORT;}
+template<> MPI_Datatype MPI_Datatypes<unsigned short>::mpi_type() { return MPI_UNSIGNED_SHORT;}
+template<> MPI_Datatype MPI_Datatypes<int>::mpi_type() { return MPI_INT;}
+template<> MPI_Datatype MPI_Datatypes<unsigned int>::mpi_type() { return MPI_UNSIGNED;}
+template<> MPI_Datatype MPI_Datatypes<double>::mpi_type() { return MPI_DOUBLE;}
+template<> MPI_Datatype MPI_Datatypes<float>::mpi_type() { return MPI_FLOAT;}

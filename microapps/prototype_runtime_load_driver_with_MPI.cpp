@@ -283,7 +283,7 @@ createGlobalOrdinalDecomposition_3DstructuredFaces(int numElemPerProcess, int nu
 	assert(locount == numFacesPerProcess);
 	// each variable element (geometrically a "face"), connects to one other process including self process
 	
-	std::sort(yourGO_PE_pair.begin(), yourGO_PE_pair.end(), GO_PE_pair::customLess(myrank) );
+	std::sort(yourGO_PE_pair.begin(), yourGO_PE_pair.end(), typename GO_PE_pair::customLess(myrank) );
 	
 	// count number of partner processes, exchange their GlobalOrdinal_t ordering...
 	int numNeighborPE = 0, lastNeighbor = myrank;
@@ -375,7 +375,6 @@ int main(int argc, char *argv[]) {
 	int numExpectedArguments = 3;
 #ifdef KERNEL_LINK_METHOD_RUNTIME_MODULE
 	numExpectedArguments++;
-	module_arg_adjust++;
 #endif
 
 	if (argc != numExpectedArguments) {
