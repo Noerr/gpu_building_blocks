@@ -19,6 +19,8 @@ nvcc --shared -o lib_kernel_parts.so kernel_parts.hip --compiler-options '-fPIC'
 
 #include <hip/hip_runtime.h>
 #include <map>
+#include <vector>
+#include <string>
 #include <sstream>
 #include <stdexcept>
 
@@ -124,6 +126,15 @@ void throw_on_hip_error( hipError_t code, const char *file, int line)
   }
 }
 
+void throw_on_hiprtc_error( hiprtcResult result, const char *file, int line)
+{
+  if(result != HIPRTC_SUCCESS)
+  {
+    std::stringstream ss;
+    ss << "HIP RTC Runtime Error " << result << " at " << file << "(" << line << "):" << hiprtcGetErrorString(result);
+    throw std::runtime_error(ss.str());
+  }
+}
 
 
 
@@ -161,7 +172,7 @@ private:
 	name_to_GPU_kernel_map_t _kernel_map;
 };
 
-KernelStore _kernel_store;
+KernelStore* _p_kernel_store = nullptr;
 } // unnamed namespace
 
 
@@ -172,12 +183,21 @@ KernelStore::load_more()
 	//build the kernels from _kernels_string
 	// Create an instance of hiprtcProgram
 	hiprtcProgram prog;
-	hiprtcCreateProgram(&prog,         // prog
+	hiprtcResult createResult = hiprtcCreateProgram(&prog,         // prog
 						_kernels_string,  // src_string
 						__FILE__,    // filename proxy, can be NULL
 						0,             // numHeaders
 						NULL,          // headers
 						NULL);        // includeNames
+	throw_on_hiprtc_error( createResult, __FILE__, __LINE__);
+	
+
+	// demangling of kernel names needed.   HIP provides utility functions to do this
+	std::vector<std::string> kernel_name_vec;
+	kernel_name_vec.push_back("initialize_element_kernel");
+	kernel_name_vec.push_back("copy_element_kernel");
+	for (auto&& x : kernel_name_vec) throw_on_hiprtc_error( hiprtcAddNameExpression(prog, x.c_str()), __FILE__, __LINE__);
+	
 	// Compile the program with fmad disabled.
 	// Note: Can specify GPU target architecture explicitly with '-arch' flag.
 	const char *opts[] = {"--fmad=false"};
@@ -193,23 +213,36 @@ KernelStore::load_more()
 		printf("RTC Compile Log: \n%s\n", log);
 		delete[] log;
 	}
-	throw_on_hip_error( (compileResult == HIPRTC_SUCCESS) ? hipSuccess : hipErrorInvalidValue, __FILE__, __LINE__);
+	throw_on_hiprtc_error( compileResult, __FILE__, __LINE__);
 	
 	// Obtain device code from the program.
 	size_t deviceCodeSize;
-	hiprtcGetCodeSize(prog, &deviceCodeSize);
+	throw_on_hiprtc_error( hiprtcGetCodeSize(prog, &deviceCodeSize), __FILE__, __LINE__);
 	char *deviceCode = new char[deviceCodeSize];
-	hiprtcGetCode(prog, deviceCode);
-	// Destroy the program.
-	hiprtcDestroyProgram(&prog);
+	throw_on_hiprtc_error( hiprtcGetCode(prog, deviceCode), __FILE__, __LINE__);
+	//printf("kernel code size is %zu Bytes.\n------------------\n%s", deviceCodeSize, deviceCode);  fflush(stdout);
+	
+
+	// get the lowered (mangled) names
+	const char * mangled_initialize_element_kernel_str;
+	const char * mangled_copy_element_kernel_str;
+	throw_on_hiprtc_error( hiprtcGetLoweredName(prog, kernel_name_vec[0].c_str(), &mangled_initialize_element_kernel_str), __FILE__, __LINE__);
+	throw_on_hiprtc_error( hiprtcGetLoweredName(prog, kernel_name_vec[1].c_str(), &mangled_copy_element_kernel_str), __FILE__, __LINE__);
+	
+	// printf("mangled names are: \n%s\n%s\n", mangled_initialize_element_kernel_str, mangled_copy_element_kernel_str);  fflush(stdout);
+	
 	// Load the generated deviceCode
 	hipModule_t module;
 	hipFunction_t hip_fn_initialize_element_kernel;
 	hipFunction_t hip_fn_copy_element_kernel;
+
 	
 	throw_on_hip_error(hipModuleLoadDataEx(&module, deviceCode, 0, 0, 0), __FILE__, __LINE__);
-	throw_on_hip_error(hipModuleGetFunction(&hip_fn_initialize_element_kernel, module, "initialize_element_kernel"), __FILE__, __LINE__);
-	throw_on_hip_error(hipModuleGetFunction(&hip_fn_copy_element_kernel, module, "copy_element_kernel"), __FILE__, __LINE__);
+	throw_on_hip_error(hipModuleGetFunction(&hip_fn_initialize_element_kernel, module, mangled_initialize_element_kernel_str), __FILE__, __LINE__);
+	throw_on_hip_error(hipModuleGetFunction(&hip_fn_copy_element_kernel, module, mangled_copy_element_kernel_str), __FILE__, __LINE__);
+
+	// Destroy the program  (AFTER utilizing mangled name strings)
+	hiprtcDestroyProgram(&prog);
 	delete[] deviceCode;
 
 	_kernel_map["initialize_element_kernel"] = new KernelFn( hip_fn_initialize_element_kernel );
@@ -237,7 +270,10 @@ extern "C"  {
 const KernelFn *
 get_kernel_by_name(const char* kernel_name) noexcept
 {
-	return _kernel_store.get(kernel_name);
+	if (!_p_kernel_store)
+		_p_kernel_store = new KernelStore();
+#warning memory leak on this program-scope new. FIXME
+	return _p_kernel_store->get(kernel_name);
 }
 
 
