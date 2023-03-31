@@ -143,13 +143,19 @@ class KernelStore
 public:
 	const KernelFn* get( const std::string& kernel_name )
 	{
+		if (!_lateLoadComplete) {
+			// changed to doing "late load" instead of the constructor after porting to HIP.
+			// Some of the HIP RTC functions complained about HIP not initialized yet when load_more was running before main().
+			load_more();
+			_lateLoadComplete = true;
+		}
 		return _kernel_map.at(kernel_name);
 	}
 	
 	
 	KernelStore()
+	: _lateLoadComplete(false)
 	{
-		load_more();
 	}
 	
 	~KernelStore()
@@ -170,9 +176,10 @@ private:
 
 		
 	name_to_GPU_kernel_map_t _kernel_map;
+	bool _lateLoadComplete;
 };
 
-KernelStore* _p_kernel_store = nullptr;
+KernelStore _kernel_store;
 } // unnamed namespace
 
 
@@ -270,10 +277,7 @@ extern "C"  {
 const KernelFn *
 get_kernel_by_name(const char* kernel_name) noexcept
 {
-	if (!_p_kernel_store)
-		_p_kernel_store = new KernelStore();
-#warning memory leak on this program-scope new. FIXME
-	return _p_kernel_store->get(kernel_name);
+	return _kernel_store.get(kernel_name);
 }
 
 
