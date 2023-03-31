@@ -1,11 +1,16 @@
 # GPU Building Blocks - key techonolgy tests and demonstration
 Prototypes and Functionality tests for GPU &amp; MPI programming models relevant to plasma modeling code
+Uses HIP programming model to target both NVIDIA and AMD GPUs and GPU pointers with MPI One-sided methods.
 
 
 
 
 ## Build the microapp test applications
 
+Note:  These commands have been tested on NERSC Perlmutter's default module environment except as follows:
+```
+module load hip
+```
 
 ### Executable driver that prototypes runtime loading and selection of GPU kernel to apply
 ```
