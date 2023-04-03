@@ -14,7 +14,7 @@ HIPCC = hipcc
 #ifndef KERNEL_LINK_METHOD_COMPILE_TIME
 #ifndef KERNEL_LINK_METHOD_RTC
 
-all:	microapp.mpi_hip_compile_time.exe #microapp.mpi_hip_runtime_module.exe microapp.mpi_hip_rtc.exe
+all:	microapp.mpi_hip_compile_time.exe microapp.mpi_hip_runtime_module.exe microapp.mpi_hip_rtc.exe
 
 #
 # For each application just call make with VERSION set correctly
@@ -37,5 +37,23 @@ microapp.mpi_hip_compile_time.exe:   dir.mpi_hip_compile_time $(HIP_KERNEL_SRC) 
 	$(CC) $(CXX_FLAGS) ./$</kernel_parts_hip.o ./$</core_device_API_hip.o ./$</dist_var.o ./$</driver.o  -lnvToolsExt -o $@
 
 
+microapp.mpi_hip_rtc.exe:   dir.mpi_hip_rtc $(HIP_KERNEL_SRC) $(CORE_DEVICE_SRC) $(DV_SRC) microapps/prototype_runtime_load_driver_with_MPI.cpp
+	$(eval DVARIANT=-DKERNEL_LINK_METHOD_RTC)
+	$(HIPCC) $(DVARIANT) -I./accelerator_api/  -c  $(HIP_KERNEL_SRC) -o ./$</kernel_parts_hip.o 
+	$(HIPCC) $(DVARIANT) $(CXX_FLAGS)  -I./accelerator_api/  -c  $(CORE_DEVICE_SRC) -o ./$</core_device_API_hip.o
+	$(CC) $(DVARIANT) $(CXX_FLAGS) -I./accelerator_api -I./distributed_variable -c $(DV_SRC) -o ./$</dist_var.o
+	$(CC) $(DVARIANT) $(CXX_FLAGS) -I./accelerator_api -I./distributed_variable -c microapps/prototype_runtime_load_driver_with_MPI.cpp -o ./$</driver.o
+	
+	$(CC) $(CXX_FLAGS) ./$</kernel_parts_hip.o ./$</core_device_API_hip.o ./$</dist_var.o ./$</driver.o  -lnvToolsExt -lnvrtc -o $@
+
+
+microapp.mpi_hip_runtime_module.exe:   dir.mpi_hip_runtime_module $(HIP_KERNEL_SRC) $(CORE_DEVICE_SRC) $(DV_SRC) microapps/prototype_runtime_load_driver_with_MPI.cpp
+	$(eval DVARIANT=-DKERNEL_LINK_METHOD_RUNTIME_MODULE)
+	$(HIPCC) --shared $(DVARIANT) -I./accelerator_api/  -c  $(HIP_KERNEL_SRC) -fPIC -o ./$</hip_kernel_module.so 
+	$(HIPCC) $(DVARIANT) $(CXX_FLAGS)  -I./accelerator_api/  -c  $(CORE_DEVICE_SRC) -o ./$</core_device_API_hip.o
+	$(CC) $(DVARIANT) $(CXX_FLAGS) -I./accelerator_api -I./distributed_variable -c $(DV_SRC) -o ./$</dist_var.o
+	$(CC) $(DVARIANT) $(CXX_FLAGS) -I./accelerator_api -I./distributed_variable -c microapps/prototype_runtime_load_driver_with_MPI.cpp -o ./$</driver.o
+	
+	$(CC) $(CXX_FLAGS)                         ./$</core_device_API_hip.o ./$</dist_var.o ./$</driver.o  -lnvToolsExt -o $@
 
 
