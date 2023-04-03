@@ -126,6 +126,7 @@ void throw_on_hip_error( hipError_t code, const char *file, int line)
   }
 }
 
+#if defined(KERNEL_LINK_METHOD_RTC)
 void throw_on_hiprtc_error( hiprtcResult result, const char *file, int line)
 {
   if(result != HIPRTC_SUCCESS)
@@ -135,7 +136,7 @@ void throw_on_hiprtc_error( hiprtcResult result, const char *file, int line)
     throw std::runtime_error(ss.str());
   }
 }
-
+#endif
 
 
 class KernelStore
