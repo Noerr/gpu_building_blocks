@@ -10,9 +10,9 @@ CXX_FLAGS = -std=c++17
 CC = CC
 HIPCC = hipcc
 
-#ifndef KERNEL_LINK_METHOD_RUNTIME_MODULE
-#ifndef KERNEL_LINK_METHOD_COMPILE_TIME
-#ifndef KERNEL_LINK_METHOD_RTC
+# NVIDIA/CUDA HIP Platform:
+INSTR_LIB_LINK = -lnvToolsExt
+RTC_LINK = -lnvrtc
 
 all:	microapp.mpi_hip_compile_time.exe microapp.mpi_hip_runtime_module.exe microapp.mpi_hip_rtc.exe
 
@@ -34,7 +34,7 @@ microapp.mpi_hip_compile_time.exe:   dir.mpi_hip_compile_time $(HIP_KERNEL_SRC) 
 	$(CC) $(DVARIANT) $(CXX_FLAGS) -I./accelerator_api -I./distributed_variable -c $(DV_SRC) -o ./$</dist_var.o
 	$(CC) $(DVARIANT) $(CXX_FLAGS) -I./accelerator_api -I./distributed_variable -c microapps/prototype_runtime_load_driver_with_MPI.cpp -o ./$</driver.o
 	
-	$(CC) $(CXX_FLAGS) ./$</kernel_parts_hip.o ./$</core_device_API_hip.o ./$</dist_var.o ./$</driver.o  -lnvToolsExt -o $@
+	$(CC) $(CXX_FLAGS) ./$</kernel_parts_hip.o ./$</core_device_API_hip.o ./$</dist_var.o ./$</driver.o  $(INSTR_LIB_LINK) -o $@
 
 
 microapp.mpi_hip_rtc.exe:   dir.mpi_hip_rtc $(HIP_KERNEL_SRC) $(CORE_DEVICE_SRC) $(DV_SRC) microapps/prototype_runtime_load_driver_with_MPI.cpp
@@ -44,7 +44,7 @@ microapp.mpi_hip_rtc.exe:   dir.mpi_hip_rtc $(HIP_KERNEL_SRC) $(CORE_DEVICE_SRC)
 	$(CC) $(DVARIANT) $(CXX_FLAGS) -I./accelerator_api -I./distributed_variable -c $(DV_SRC) -o ./$</dist_var.o
 	$(CC) $(DVARIANT) $(CXX_FLAGS) -I./accelerator_api -I./distributed_variable -c microapps/prototype_runtime_load_driver_with_MPI.cpp -o ./$</driver.o
 	
-	$(CC) $(CXX_FLAGS) ./$</kernel_parts_hip.o ./$</core_device_API_hip.o ./$</dist_var.o ./$</driver.o  -lnvToolsExt -lnvrtc -o $@
+	$(CC) $(CXX_FLAGS) ./$</kernel_parts_hip.o ./$</core_device_API_hip.o ./$</dist_var.o ./$</driver.o  $(INSTR_LIB_LINK) $(RTC_LINK) -o $@
 
 
 microapp.mpi_hip_runtime_module.exe:   dir.mpi_hip_runtime_module $(HIP_KERNEL_SRC) $(CORE_DEVICE_SRC) $(DV_SRC) microapps/prototype_runtime_load_driver_with_MPI.cpp
@@ -54,6 +54,6 @@ microapp.mpi_hip_runtime_module.exe:   dir.mpi_hip_runtime_module $(HIP_KERNEL_S
 	$(CC) $(DVARIANT) $(CXX_FLAGS) -I./accelerator_api -I./distributed_variable -c $(DV_SRC) -o ./$</dist_var.o
 	$(CC) $(DVARIANT) $(CXX_FLAGS) -I./accelerator_api -I./distributed_variable -c microapps/prototype_runtime_load_driver_with_MPI.cpp -o ./$</driver.o
 	
-	$(CC) $(CXX_FLAGS)                         ./$</core_device_API_hip.o ./$</dist_var.o ./$</driver.o  -lnvToolsExt -o $@
+	$(CC) $(CXX_FLAGS)                         ./$</core_device_API_hip.o ./$</dist_var.o ./$</driver.o  $(INSTR_LIB_LINK) -o $@
 
 
