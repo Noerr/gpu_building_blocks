@@ -208,13 +208,13 @@ KernelStore::load_more()
 	
 	// Compile the program with fmad disabled.
 	// Note: Can specify GPU target architecture explicitly with '-arch' flag.
-	const char *opts[] = {"--fmad=false"};
+	const char *opts[] = {}; //cuda only:{"--fmad=false",};
 	hiprtcResult compileResult = hiprtcCompileProgram(prog,  // prog
-													1,     // numOptions
+													sizeof(opts)/sizeof(char*),     // numOptions
 													opts); // options
 	// Obtain compilation log from the program.
 	size_t logSize;
-	hiprtcGetProgramLogSize(prog, &logSize);
+	throw_on_hiprtc_error( hiprtcGetProgramLogSize(prog, &logSize), __FILE__, __LINE__ );
 	if (logSize>1) {
 		char *log = new char[logSize];
 		hiprtcGetProgramLog(prog, log);
@@ -293,11 +293,30 @@ enqueueKernelWork_1D( DeviceStream* pStream, const KernelFn * fn, int numBlocks,
 
 #if defined(KERNEL_LINK_METHOD_RTC)
 	hipFunction_t hip_kernel_fn = fn->to_HIP_fn();
+
+#if defined(__HIP_PLATFORM_NVIDIA__)
 	throw_on_hip_error(hipModuleLaunchKernel(hip_kernel_fn,
                    numBlocks, 1, 1,    // grid dim
                    blockSize, 1, 1,   // block dim
                    0, hipStream /* casting hipStream_t to hipStream_t */,             // shared mem and stream
                    args, 0), __FILE__, __LINE__);
+#elif defined(__HIP_PLATFORM_AMD__)
+	//Discovered: "Warning kernellParams argument is not yet implemented in HIP. Please use extra instead. Please refer to hip_porting_driver_api.md for sample usage."
+	size_t args_size = 2*sizeof(void*);
+	void *launch_config[] = {
+		HIP_LAUNCH_PARAM_BUFFER_POINTER, args, //&argBuffer[0],
+		HIP_LAUNCH_PARAM_BUFFER_SIZE, &args_size,
+		HIP_LAUNCH_PARAM_END
+    };
+	throw_on_hip_error(hipModuleLaunchKernel(hip_kernel_fn,
+                   numBlocks, 1, 1,    // grid dim
+                   blockSize, 1, 1,   // block dim
+                   0, hipStream /* casting hipStream_t to hipStream_t */,             // shared mem and stream
+                   nullptr, (void**)&launch_config), __FILE__, __LINE__);
+#else
+#error "HIP Platform not set"
+#endif
+
 #else
 	const void * p_HIP_kernel_fn = fn->toHIP_kernel_fn_ptr();
 	//printf("launching fn by ptr %p\n", hip_kernel_fn);  fflush(stdout);

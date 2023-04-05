@@ -14,6 +14,11 @@ HIPCC = hipcc
 INSTR_LIB_LINK = -lnvToolsExt
 RTC_LINK = -lnvrtc
 
+# AMD GPU (ROCm) Platform:
+INSTR_LIB_LINK = -L$(ROCM_PATH)/lib -lroctx64 -lamdhip64
+RTC_LINK = 
+
+
 all:	microapp.mpi_hip_compile_time.exe microapp.mpi_hip_runtime_module.exe microapp.mpi_hip_rtc.exe
 
 #
@@ -49,7 +54,7 @@ microapp.mpi_hip_rtc.exe:   dir.mpi_hip_rtc $(HIP_KERNEL_SRC) $(CORE_DEVICE_SRC)
 
 microapp.mpi_hip_runtime_module.exe:   dir.mpi_hip_runtime_module $(HIP_KERNEL_SRC) $(CORE_DEVICE_SRC) $(DV_SRC) microapps/prototype_runtime_load_driver_with_MPI.cpp
 	$(eval DVARIANT=-DKERNEL_LINK_METHOD_RUNTIME_MODULE)
-	$(HIPCC) --shared $(DVARIANT) -I./accelerator_api/  -c  $(HIP_KERNEL_SRC) -fPIC -o ./$</hip_kernel_module.so 
+	$(HIPCC) --shared $(DVARIANT) -I./accelerator_api/   $(HIP_KERNEL_SRC) -fPIC -o ./$</hip_kernel_module.so 
 	$(HIPCC) $(DVARIANT) $(CXX_FLAGS)  -I./accelerator_api/  -c  $(CORE_DEVICE_SRC) -o ./$</core_device_API_hip.o
 	$(CC) $(DVARIANT) $(CXX_FLAGS) -I./accelerator_api -I./distributed_variable -c $(DV_SRC) -o ./$</dist_var.o
 	$(CC) $(DVARIANT) $(CXX_FLAGS) -I./accelerator_api -I./distributed_variable -c microapps/prototype_runtime_load_driver_with_MPI.cpp -o ./$</driver.o

@@ -9,10 +9,12 @@
 #include <hip/hip_runtime.h>
 
 #if defined(__CUDA_API_VER_MAJOR__)  // substitute for expected HIP_PLATFORM_NVDIA
-#define USING_CUDA__TEMP_REDUNDANT_MACRO
+#define __HIP_PLATFORM_NVIDIA__ backup
 #include <nvToolsExtCuda.h> //for the nvtx profiler annotations api.
-#elif defined(HIP_PLATFORM_AMD)
-#include <roctx.h>
+
+#elif defined(__HIP_PLATFORM_AMD__)
+#include <roctracer/roctx.h>
+
 #else
 #error "HIP Platform not set."
 #endif
@@ -160,9 +162,9 @@ DeviceStream::sync()
 namespace Tracing {
 	void traceRangePush(const char * traceRegionLabel)
 	{
-#if defined(USING_CUDA__TEMP_REDUNDANT_MACRO)
+#if defined(__HIP_PLATFORM_NVIDIA__)
 		nvtxRangePush(traceRegionLabel);
-#elif defined(HIP_PLATFORM_AMD)
+#elif defined(__HIP_PLATFORM_AMD__)
 		roctxRangePush(traceRegionLabel);
 #else
 #error "HIP Platform not set."
@@ -171,9 +173,9 @@ namespace Tracing {
 
 	void traceRangePop()
 	{
-#if defined(USING_CUDA__TEMP_REDUNDANT_MACRO)
+#if defined(__HIP_PLATFORM_NVIDIA__)
 		nvtxRangePop();
-#elif defined(HIP_PLATFORM_AMD)
+#elif defined(__HIP_PLATFORM_AMD__)
 		roctxRangePop();
 #else
 #error "HIP Platform not set."
