@@ -8,8 +8,7 @@
 #include "stream_implementation_hip.h"
 #include <hip/hip_runtime.h>
 
-#if defined(__CUDA_API_VER_MAJOR__)  // substitute for expected HIP_PLATFORM_NVDIA
-#define __HIP_PLATFORM_NVIDIA__ backup
+#if defined(__HIP_PLATFORM_NVIDIA__)
 #include <nvToolsExtCuda.h> //for the nvtx profiler annotations api.
 
 #elif defined(__HIP_PLATFORM_AMD__)
