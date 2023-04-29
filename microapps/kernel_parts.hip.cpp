@@ -57,12 +57,13 @@ KERNEL_CODE_HANDLER(
 typedef size_t GO;  typedef short LO;
 
 __global__
-void initialize_element_kernel(int numLocalItems, double *e , int myProcessID)
+void initialize_element_kernel(int numLocalItems, double *e , const GO * globalOrdinals, int myProcessID)
 {
   int index = blockIdx.x * blockDim.x + threadIdx.x;
   int stride = blockDim.x * gridDim.x;
+  // just a funny marker to each item to allow for inspecting uniqueness and ownership
   for (int i = index; i < numLocalItems; i += stride)
-    e[i] = myProcessID*10000 + i;
+    e[i] = myProcessID*0.0001 + globalOrdinals[i];
 }
 
 __global__
@@ -72,6 +73,30 @@ void copy_element_kernel(int numLocalItems, const double *e_src, double *e_dst)
   int stride = blockDim.x * gridDim.x;
   for (int i = index; i < numLocalItems; i += stride)
       e_dst[i] = e_src[i] + 1000;
+}
+
+__global__
+void average_elements_kernel(int numLocalItems, const double *e_src, double *e_dst)
+{
+  int index = blockIdx.x * blockDim.x + threadIdx.x;
+  int stride = blockDim.x * gridDim.x;
+  for (int i = index; i < numLocalItems; i += stride)
+      e_dst[i] = 0.5*(e_dst[i] + e_src[i]);
+}
+
+
+__global__
+void sum_reduce_kernel(int numLocalItems, const double *e, double * localSum )
+{
+  int index = blockIdx.x * blockDim.x + threadIdx.x;
+  // int stride = blockDim.x * gridDim.x;
+  // TODO:  come back and write this proper for GPU. (void) stride;
+  double mySum = 0.;
+  if (index==0) {
+   for (int i = index; i < numLocalItems; i ++ )
+      mySum += e[i];
+   localSum[0] = mySum;
+  }
 }
 
 ) //KERNEL_CODE_HANDLER()
@@ -205,6 +230,8 @@ KernelStore::load_more()
 	std::vector<std::string> kernel_name_vec;
 	kernel_name_vec.push_back("initialize_element_kernel");
 	kernel_name_vec.push_back("copy_element_kernel");
+	kernel_name_vec.push_back("average_elements_kernel");
+	kernel_name_vec.push_back("sum_reduce_kernel");
 	for (auto&& x : kernel_name_vec) throw_on_hiprtc_error( hiprtcAddNameExpression(prog, x.c_str()), __FILE__, __LINE__);
 	
 	// Compile the program with fmad disabled.
@@ -235,8 +262,12 @@ KernelStore::load_more()
 	// get the lowered (mangled) names
 	const char * mangled_initialize_element_kernel_str;
 	const char * mangled_copy_element_kernel_str;
+	const char * mangled_average_elements_kernel_str;
+	const char * mangled_sum_reduce_kernel_str;
 	throw_on_hiprtc_error( hiprtcGetLoweredName(prog, kernel_name_vec[0].c_str(), &mangled_initialize_element_kernel_str), __FILE__, __LINE__);
 	throw_on_hiprtc_error( hiprtcGetLoweredName(prog, kernel_name_vec[1].c_str(), &mangled_copy_element_kernel_str), __FILE__, __LINE__);
+	throw_on_hiprtc_error( hiprtcGetLoweredName(prog, kernel_name_vec[2].c_str(), &mangled_average_elements_kernel_str), __FILE__, __LINE__);
+	throw_on_hiprtc_error( hiprtcGetLoweredName(prog, kernel_name_vec[3].c_str(), &mangled_sum_reduce_kernel_str), __FILE__, __LINE__);
 	
 	// printf("mangled names are: \n%s\n%s\n", mangled_initialize_element_kernel_str, mangled_copy_element_kernel_str);  fflush(stdout);
 	
@@ -244,11 +275,14 @@ KernelStore::load_more()
 	hipModule_t module;
 	hipFunction_t hip_fn_initialize_element_kernel;
 	hipFunction_t hip_fn_copy_element_kernel;
-
+	hipFunction_t hip_fn_average_elements_kernel;
+	hipFunction_t hip_fn_sum_reduce_kernel;
 	
 	throw_on_hip_error(hipModuleLoadDataEx(&module, deviceCode, 0, 0, 0), __FILE__, __LINE__);
 	throw_on_hip_error(hipModuleGetFunction(&hip_fn_initialize_element_kernel, module, mangled_initialize_element_kernel_str), __FILE__, __LINE__);
 	throw_on_hip_error(hipModuleGetFunction(&hip_fn_copy_element_kernel, module, mangled_copy_element_kernel_str), __FILE__, __LINE__);
+	throw_on_hip_error(hipModuleGetFunction(&hip_fn_average_elements_kernel, module, mangled_average_elements_kernel_str), __FILE__, __LINE__);
+	throw_on_hip_error(hipModuleGetFunction(&hip_fn_sum_reduce_kernel, module, mangled_sum_reduce_kernel_str), __FILE__, __LINE__);
 
 	// Destroy the program  (AFTER utilizing mangled name strings)
 	hiprtcDestroyProgram(&prog);
@@ -256,13 +290,20 @@ KernelStore::load_more()
 
 	_kernel_map["initialize_element_kernel"] = new KernelFn( hip_fn_initialize_element_kernel );
 	_kernel_map["copy_element_kernel"]       = new KernelFn( hip_fn_copy_element_kernel );
+	_kernel_map["average_elements_kernel"]   = new KernelFn( hip_fn_average_elements_kernel );
+	_kernel_map["sum_reduce_kernel"]         = new KernelFn( hip_fn_sum_reduce_kernel );
 	
 #else 
 		void * fn1 = reinterpret_cast<void*>(initialize_element_kernel);
 		void * fn2 = reinterpret_cast<void*>(copy_element_kernel);
+		void * fn3 = reinterpret_cast<void*>(average_elements_kernel);
+		void * fn4 = reinterpret_cast<void*>(sum_reduce_kernel);
 
 		_kernel_map["initialize_element_kernel"] = new KernelFn( fn1 );
 		_kernel_map["copy_element_kernel"]       = new KernelFn( fn2 );
+		_kernel_map["average_elements_kernel"]   = new KernelFn( fn3 );
+		_kernel_map["sum_reduce_kernel"]         = new KernelFn( fn4 );
+		
 #endif
 
 }

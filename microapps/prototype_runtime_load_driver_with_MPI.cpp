@@ -24,6 +24,7 @@
 #include <chrono>
 #include <sstream>
 #include <iostream>
+#include <iomanip>
 #include <cstdlib>
 #include <limits>
 #include <unistd.h> //for sleep() and getpid()
@@ -331,7 +332,8 @@ createGlobalOrdinalDecomposition_3DstructuredFaces(int numElemPerProcess, int nu
 		//int ignoredRet2 = MPI_Isend(sendBuf, 1, MPI_Datatypes<LocalIndex>::mpi_type(), pair_PE, 0/*tag*/, MPI_COMM_WORLD, &requests[exchangeCounter++]);
 		
 	}
-	MPI_Waitall(exchangeCounter, &requests[0], MPI_STATUSES_IGNORE);
+	// how is the above not deadlocking? SendRecv is blocking. i might have just gotten lucky with the sorting by rank order.
+	MPI_Waitall(exchangeCounter, &requests[0], MPI_STATUSES_IGNORE); // this waitall is waiting for zero. looks like i forgot to remove
 	
 	// Decomposition Diagnostics:
 	// std::stringstream ss;
@@ -400,10 +402,10 @@ int main(int argc, char *argv[]) {
 	}
 #endif
 
-	std::string kernel_name;
+	std::string initialize_element_kernel_name;
 	{
 		std::stringstream arg3(argv[numExpectedArguments-1]);
-		arg3 >> kernel_name;
+		arg3 >> initialize_element_kernel_name;
 	}
 
 	int numranks, myrank;
@@ -478,19 +480,28 @@ int main(int argc, char *argv[]) {
 	void * my_faces_dev_ptr = myFaces.device_ptr();
 	void * your_faces_dev_ptr = yourFaces.device_ptr();
 
+    // to initialize element values based on global ordinal, add an additional device allocation
+	SimpleDeviceVector<GO> myGlobalOrdinals_devicevec( myGlobalOrdinals.size() );
+
+
 	// Compute Device and stream(s)
 	DeviceStream * pStream1 = getComputeDevice().createStream();
 
 	Tracing::traceRangePush("kernels on stream1");
 	// kernel run #1 : initialize elements based on runtime argument
-	void * args1[] = {&num_faces_local, &my_faces_dev_ptr, &myrank};
-	const KernelFn * user_choice_kernel = get_kernel_by_name_module1( kernel_name.c_str() );
-	enqueueKernelWork_module1( pStream1, user_choice_kernel, numBlocks, blockSize, args1);
+	GO* go_dev_ptr = myGlobalOrdinals_devicevec.device_ptr();
+	pStream1->memcpy( go_dev_ptr, &myGlobalOrdinals[0], myGlobalOrdinals.size()*sizeof(GO));
+	void * args1[] = {&num_faces_local, &my_faces_dev_ptr, &go_dev_ptr, &myrank};
+	const KernelFn * initialize_element_kernel = get_kernel_by_name_module1( initialize_element_kernel_name.c_str() );
+	enqueueKernelWork_module1( pStream1, initialize_element_kernel, numBlocks, blockSize, args1);
 
 	// kernel run #2 : copy elements
-	void * args2[] = {&num_faces_local, &my_faces_dev_ptr, &your_faces_dev_ptr};
-	const KernelFn * copy_element_kernel = get_kernel_by_name_module1( "copy_element_kernel" );
-	enqueueKernelWork_module1( pStream1, copy_element_kernel, numBlocks, blockSize, args2);
+	// void * args2[] = {&num_faces_local, &my_faces_dev_ptr, &your_faces_dev_ptr};
+	// const KernelFn * copy_element_kernel = get_kernel_by_name_module1( "copy_element_kernel" );
+	// enqueueKernelWork_module1( pStream1, copy_element_kernel, numBlocks, blockSize, args2);
+
+	void * args_avg_kernel[] = {&num_faces_local, &my_faces_dev_ptr, &your_faces_dev_ptr};
+	const KernelFn * average_elements_kernel = get_kernel_by_name_module1( "average_elements_kernel" );
 
 	std::vector<double> host_result(num_faces_local);
 
@@ -516,6 +527,10 @@ int main(int argc, char *argv[]) {
 		exchanger_p->exposureEpochEnd();
 		if (count==0)
 			firstIterStop = std::chrono::high_resolution_clock::now();
+		
+		//each iteration, average your faces and my faces -> store in my faces
+		enqueueKernelWork_module1( pStream1, average_elements_kernel, numBlocks, blockSize, args_avg_kernel);
+		pStream1->sync();
 	}
 	auto lastIterStop = std::chrono::high_resolution_clock::now();
 
@@ -529,10 +544,23 @@ int main(int argc, char *argv[]) {
 			std::cout << "    Remaining epochs: " << remaining_microseconds << " microseconds,  " << remaining_microseconds/double(numExchangeIterations-1) << " microseconds per iteration." << std::endl;		
 
 	}
+
+	// Results evaluation
+	SimpleDeviceVector<double> localReduceValue(1);
+	double globalReduceValueHost; //SimpleDeviceVector<double> globalReduceValue(1);
+	double* localReduce_dev_ptr = localReduceValue.device_ptr();
+	
+	void * args_sum_reduce_kernel[] = {&num_faces_local, &my_faces_dev_ptr, &localReduce_dev_ptr};
+	const KernelFn * sum_reduce_kernel = get_kernel_by_name_module1( "sum_reduce_kernel" );
+	enqueueKernelWork_module1( pStream1, sum_reduce_kernel, numBlocks, blockSize, args_sum_reduce_kernel);
+	pStream1->sync();
+	MPI_Allreduce( localReduce_dev_ptr, &globalReduceValueHost, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+
 	pStream1->memcpy( &host_result[0], yourFaces.device_ptr(), num_faces_local*sizeof(double));
 	pStream1->sync();
 
-	// Output Diagnostics:
+	//Output Diagnostics:
+	if (myrank==0) std::cout << "Final Global Sum: " << std::setprecision(18) << globalReduceValueHost << std::endl;
 	// if (myrank==0) std::cout << "yourFaces After Exchange:" << std::endl;
 	// for (int p = 0; p < numranks; p++)
 	// {
