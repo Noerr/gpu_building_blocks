@@ -29,57 +29,58 @@ nvcc --shared -o lib_kernel_parts.so kernel_parts.hip --compiler-options '-fPIC'
 #include "kernels_module_interface.h"
 #include "stream_implementation_hip.h"
 
-// bwah. ideally the kernel definitions only appear once, but i wasted two much time trying to sort out a preprocessor way to achieve this aim.
 #if defined(KERNEL_LINK_METHOD_RTC)
 #include <hip/hiprtc.h>
 #include <hip/hip_runtime.h>
-namespace {
-const char* _kernels_string = R"rawstring(
-
-typedef size_t GO;  typedef short LO;
-
-__global__
-void initialize_element_kernel(int lid, double *e , int myProcessID)
-{
-  int index = blockIdx.x * blockDim.x + threadIdx.x;
-  int stride = blockDim.x * gridDim.x;
-  for (int i = index; i < lid; i += stride)
-    e[i] = myProcessID*10000 + i;
-}
-
-__global__
-void copy_element_kernel(int lid, const double *e_src, double *e_dst)
-{
-  int index = blockIdx.x * blockDim.x + threadIdx.x;
-  int stride = blockDim.x * gridDim.x;
-  for (int i = index; i < lid; i += stride)
-      e_dst[i] = e_src[i] + 1000;
-}
-
-)rawstring";
-}
-#else
-
-typedef size_t GO;  typedef short LO;
-
-__global__
-void initialize_element_kernel(int lid, double *e , int myProcessID)
-{
-  int index = blockIdx.x * blockDim.x + threadIdx.x;
-  int stride = blockDim.x * gridDim.x;
-  for (int i = index; i < lid; i += stride)
-    e[i] = myProcessID*10000 + i;
-}
-
-__global__
-void copy_element_kernel(int lid, const double *e_src, double *e_dst)
-{
-  int index = blockIdx.x * blockDim.x + threadIdx.x;
-  int stride = blockDim.x * gridDim.x;
-  for (int i = index; i < lid; i += stride)
-      e_dst[i] = e_src[i] + 1000;
-}
 #endif
+
+
+////////////////////////////////////////////////////////////////////////////
+// Below we use macro KERNEL_CODE_HANDLER() enclosing the GPU kernel code
+// to either do nothing or convert the whole block to a string literal
+// at compile time for the runtime compilation (RTC) method.
+// Note that for RTC, newlines are removed by the STRINGIZE macro,
+// so all comments must be in /* C-style */.
+// This complexity is simply so that this same source file can support muliple
+// kernel compilation methods while writing the kernel code just once.
+////////////////////////////////////////////////////////////////////////////
+#if defined(KERNEL_LINK_METHOD_RTC)
+#define STRINGIZE(A) #A
+#define KERNEL_CODE_HANDLER(A)  STRINGIZE(A)
+namespace {
+const char* _kernels_string = 
+#else
+#define KERNEL_CODE_HANDLER(A)  A
+#endif
+
+KERNEL_CODE_HANDLER(
+typedef size_t GO;  typedef short LO;
+
+__global__
+void initialize_element_kernel(int numLocalItems, double *e , int myProcessID)
+{
+  int index = blockIdx.x * blockDim.x + threadIdx.x;
+  int stride = blockDim.x * gridDim.x;
+  for (int i = index; i < numLocalItems; i += stride)
+    e[i] = myProcessID*10000 + i;
+}
+
+__global__
+void copy_element_kernel(int numLocalItems, const double *e_src, double *e_dst)
+{
+  int index = blockIdx.x * blockDim.x + threadIdx.x;
+  int stride = blockDim.x * gridDim.x;
+  for (int i = index; i < numLocalItems; i += stride)
+      e_dst[i] = e_src[i] + 1000;
+}
+
+) //KERNEL_CODE_HANDLER()
+#if defined(KERNEL_LINK_METHOD_RTC)
+; }
+#endif
+////////////////////////////////////////////////////////////////////////////
+
+
 
 class KernelFn
 {
