@@ -344,7 +344,8 @@ enqueueKernelWork_1D( DeviceStream* pStream, const KernelFn * fn, int numBlocks,
                    args, 0), __FILE__, __LINE__);
 #elif defined(__HIP_PLATFORM_AMD__)
 	//Discovered: "Warning kernellParams argument is not yet implemented in HIP. Please use extra instead. Please refer to hip_porting_driver_api.md for sample usage."
-	size_t args_size = 2*sizeof(void*);
+	size_t args_size = 4*sizeof(void*); // <- this is problematic hard-coding number of arguments.
+	// TODO: I did not write infrastructure to track number of kernel arguments.  This one case of ROCm + RTC is not currently capable to understand number of arguments inherently 
 	void *launch_config[] = {
 		HIP_LAUNCH_PARAM_BUFFER_POINTER, args, //&argBuffer[0],
 		HIP_LAUNCH_PARAM_BUFFER_SIZE, &args_size,
